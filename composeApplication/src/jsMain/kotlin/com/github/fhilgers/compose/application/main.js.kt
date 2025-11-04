@@ -55,7 +55,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.util.fastJoinToString
 import androidx.compose.ui.window.ComposeViewport
+import androidx.compose.ui.window.documentIsVisible
 import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -107,6 +109,81 @@ import org.w3c.dom.ItemArrayLike
 import org.w3c.dom.LOADING
 import org.w3c.dom.events.EventListener
 import org.w3c.dom.events.KeyboardEvent
+
+// From ComposeWindow.w3c.kt, e.g. the same file where we yeeted the semantics out of
+
+//addTypedEvent<TouchEvent>("touchstart") { event ->
+//    canvas.getBoundingClientRect().apply {
+//        offset = Offset(x = left.toFloat(), y = top.toFloat())
+//    }
+//
+//    onTouchEvent(event, offset)
+//}
+//
+//addTypedEvent<TouchEvent>("touchmove") { event ->
+//    onTouchEvent(event, offset)
+//}
+//
+//addTypedEvent<TouchEvent>("touchend") { event ->
+//    onTouchEvent(event, offset)
+//}
+//
+//addTypedEvent<TouchEvent>("touchcancel") { event ->
+//    onTouchEvent(event, offset)
+//}
+//
+//addTypedEvent<MouseEvent>("mousedown") { event ->
+//    onMouseEvent(event)
+//}
+//
+//addTypedEvent<MouseEvent>("mouseup") { event ->
+//    onMouseEvent(event)
+//}
+//
+//addTypedEvent<MouseEvent>("mousemove") { event ->
+//    onMouseEvent(event)
+//}
+//
+//addTypedEvent<MouseEvent>("mouseenter") { event ->
+//    onMouseEvent(event)
+//}
+//
+//addTypedEvent<MouseEvent>("mouseleave") { event ->
+//    onMouseEvent(event)
+//}
+//
+//addTypedEvent<WheelEvent>("wheel") { event ->
+//    onWheelEvent(event)
+//}
+//
+//canvas.addEventListener("contextmenu", { event ->
+//    event.preventDefault()
+//})
+//
+//addTypedEvent<KeyboardEvent>("keydown") { event ->
+//    processKeyboardEvent(event)
+//}
+//
+//addTypedEvent<KeyboardEvent>("keyup") { event ->
+//    processKeyboardEvent(event)
+//}
+//
+//state.globalEvents.addDisposableEvent("focus") {
+//    lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+//}
+//
+//state.globalEvents.addDisposableEvent("blur") {
+//    lifecycle.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+//}
+//
+//state.globalEvents.addDisposableEvent("visibilitychange") { event ->
+//    lifecycle.handleLifecycleEvent(
+//        if (documentIsVisible()) Lifecycle.Event.ON_START
+//        else Lifecycle.Event.ON_STOP
+//    )
+//}
+
+
 
 
 class CanvasSemanticsOwnerListener(
@@ -171,6 +248,7 @@ class CanvasSemanticsOwnerListener(
                 } else {
                     document.createElement("div") as HTMLDivElement
                 }
+
 
                 val canvas = a11yContainer.previousElementSibling?.previousElementSibling as? HTMLCanvasElement
                 element.addEventListener("keydown", EventListener {
