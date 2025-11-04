@@ -22,6 +22,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.RichTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -41,6 +42,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.InternalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.PlatformContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
@@ -48,6 +50,10 @@ import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsOwner
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.semantics.onImeAction
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.util.fastJoinToString
 import androidx.compose.ui.window.ComposeViewport
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -70,7 +76,10 @@ import kotlinx.browser.document
 import kotlinx.browser.localStorage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.dom.clear
 import kotlinx.serialization.SerialName
@@ -79,34 +88,41 @@ import org.koin.android.annotation.KoinViewModel
 import org.koin.compose.KoinApplication
 import org.koin.compose.currentKoinScope
 import org.koin.compose.viewmodel.koinViewModel
-import org.koin.core.annotation.ComponentScan
 import org.koin.core.annotation.InjectedParam
 import org.koin.core.annotation.KoinApplication
 import org.koin.core.annotation.Module
-import org.koin.core.annotation.Provided
 import org.koin.core.annotation.Single
-import org.koin.core.component.KoinComponent
 import org.koin.core.parameter.ParametersDefinition
 import org.koin.core.parameter.emptyParametersHolder
 import org.koin.core.qualifier.Qualifier
 import org.koin.core.scope.Scope
 import org.koin.ksp.generated.koinConfiguration
-import org.koin.meta.annotations.ExternalDefinition
 import org.koin.viewmodel.defaultExtras
 import org.w3c.dom.DocumentReadyState
 import org.w3c.dom.HTMLButtonElement
+import org.w3c.dom.HTMLCanvasElement
 import org.w3c.dom.HTMLDivElement
 import org.w3c.dom.HTMLElement
 import org.w3c.dom.ItemArrayLike
 import org.w3c.dom.LOADING
 import org.w3c.dom.events.EventListener
-import org.w3c.dom.get
+import org.w3c.dom.events.KeyboardEvent
 
 
 class CanvasSemanticsOwnerListener(
     val a11yContainer: HTMLDivElement,
     val coroutineScope: CoroutineScope = MainScope(),
 ) : PlatformContext.SemanticsOwnerListener {
+
+    val focusTask = Channel<() -> Unit>(capacity = 1, BufferOverflow.DROP_OLDEST)
+
+    init {
+        coroutineScope.launch {
+            focusTask.receiveAsFlow().collect {
+                it()
+            }
+        }
+    }
 
 
     override fun onSemanticsOwnerAppended(semanticsOwner: SemanticsOwner) {
@@ -125,6 +141,9 @@ class CanvasSemanticsOwnerListener(
 
         element.remove()
     }
+
+    val listeners = mutableMapOf<Int, EventListener>()
+    val clickListeners = mutableMapOf<Int, EventListener>()
 
     override fun onSemanticsChange(semanticsOwner: SemanticsOwner) {
         val queue = ArrayDeque(listOf(semanticsOwner.rootSemanticsNode))
@@ -152,6 +171,22 @@ class CanvasSemanticsOwnerListener(
                 } else {
                     document.createElement("div") as HTMLDivElement
                 }
+
+                val canvas = a11yContainer.previousElementSibling?.previousElementSibling as? HTMLCanvasElement
+                element.addEventListener("keydown", EventListener {
+                    it.stopImmediatePropagation()
+                    it.stopPropagation()
+                    it.preventDefault()
+                    val x = js("new it.constructor(it.type, it);")
+                    canvas?.dispatchEvent(x)
+                });
+                element.addEventListener("keyup", EventListener {
+                    it.stopImmediatePropagation()
+                    it.stopPropagation()
+                    it.preventDefault()
+                    val x = js("new it.constructor(it.type, it);")
+                    canvas?.dispatchEvent(x)
+                });
 
                 val parentElement = node.parent?.id?.let(::findElement) ?: a11yContainer
 
@@ -184,11 +219,11 @@ class CanvasSemanticsOwnerListener(
             // element.clearAll()
 
             when (role) {
-                Role.Button -> {
-                }
-
+                Role.Button -> element.setAttribute("role", "button")
                 Role.Image -> element.setAttribute("role", "img")
             }
+
+
 
             val isDialog = node.config.getOrNull(SemanticsProperties.IsDialog)
 
@@ -203,26 +238,44 @@ class CanvasSemanticsOwnerListener(
 
             val onClick = node.config.getOrNull(SemanticsActions.OnClick)?.action
 
-            if (onClick != null) {
-                element.removeEventListener(
-                    "click", element.asDynamic().click.unsafeCast<EventListener?>()
-                )
-                element.addEventListener("click", EventListener {
+            if (onClick != null && clickListeners[node.id] == null) {
+
+                val clickListener = EventListener {
+                    console.log("Click")
                     onClick()
-                })
+                }
+
+                element.addEventListener("click", clickListener)
+                clickListeners[node.id] = clickListener
+            } else if (onClick == null && clickListeners[node.id] != null) {
+                element.removeEventListener(
+                    "click", clickListeners[node.id]
+                )
+                clickListeners.remove(node.id)
             }
 
             val requestFocus = node.config.getOrNull(SemanticsActions.RequestFocus)?.action
 
-            if (requestFocus != null) {
-                // element.setAttribute("tabindex", "0")
+            if (requestFocus != null && listeners[node.id] == null) {
+                element.setAttribute("tabindex", "0")
+                val focusListener = EventListener {
+                    // console.log("Focus", document.activeElement)
+                    console.log("Focus")
+                    // requestFocus()
+                };
+                element.addEventListener("focus", focusListener)
+                listeners[node.id] = focusListener
+            } else if (requestFocus == null && listeners[node.id] != null) {
                 element.removeEventListener(
-                    "focus", element.asDynamic().focus.unsafeCast<EventListener?>()
+                    "focus", listeners[node.id]
                 )
-                element.addEventListener("focus", EventListener {
-//                    console.log("Focus")
-                    requestFocus()
-                })
+                listeners.remove(node.id)
+            }
+
+            val focussed = node.config.getOrNull(SemanticsProperties.Focused)
+
+            if (focussed == true) {
+                element.focus()
             }
 
             val title = node.config.getOrNull(SemanticsProperties.PaneTitle)
@@ -249,7 +302,10 @@ class CanvasSemanticsOwnerListener(
 
         val unseen = currentIds - seen
 
-        for (id in unseen) findElement(id)?.remove()
+        for (id in unseen) {
+            findElement(id)?.remove()
+            listeners.remove(id)
+        }
     }
 
     override fun onLayoutChange(
@@ -276,10 +332,10 @@ class CanvasSemanticsOwnerListener(
             for (child in node.children) inner(child.id)
         }
 
-        coroutineScope.launch {
-            delay(100)
-            inner(semanticsNodeId)
-        }
+        inner(semanticsNodeId)
+        // coroutineScope.launch {
+        //     delay(100)
+        // }
     }
 
     private fun findNode(
@@ -563,7 +619,7 @@ fun main() = AccessibleComposeViewport {
                                     TooltipAnchorPosition.Above
                                 ),
                                 tooltip = {
-                                    Text("Return to Navigation")
+                                    RichTooltip { Text("Return to Navigation") }
                                 },
                                 state = rememberTooltipState(false),
                             ) {

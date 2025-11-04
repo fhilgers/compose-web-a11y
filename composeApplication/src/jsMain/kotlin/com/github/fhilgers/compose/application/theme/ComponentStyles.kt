@@ -13,7 +13,7 @@ import com.github.fhilgers.compose.application.theme.components.DropdownMenuItem
 import com.github.fhilgers.compose.application.theme.components.FloatingActionButtonStyle
 import com.github.fhilgers.compose.application.theme.components.IconButtonStyle
 import com.github.fhilgers.compose.application.theme.components.InputAreaStyle
-import com.github.fhilgers.compose.application.theme.components.LibraryStyle
+//import com.github.fhilgers.compose.application.theme.components.LibraryStyle
 import com.github.fhilgers.compose.application.theme.components.ListItemStyle
 import com.github.fhilgers.compose.application.theme.components.ProgressIndicatorStyle.CircularProgressIndicatorStyle
 import com.github.fhilgers.compose.application.theme.components.ProgressIndicatorStyle.LinearProgressIndicatorStyle
@@ -111,7 +111,7 @@ data class ComponentStyles(
     val selectionOnPrimary: SelectionStyle,
     // other
     val settingsItem: ListItemStyle,
-    val library: LibraryStyle,
+//    val library: LibraryStyle,
 )
 
 internal val LocalComponentStyles = staticCompositionLocalOf<ComponentStyles> { error("compositionLocal not defined") }

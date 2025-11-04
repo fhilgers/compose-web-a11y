@@ -22,11 +22,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.github.fhilgers.compose.application.theme.ComponentStyles
-import com.github.fhilgers.compose.application.theme.LocalComponentStyles
-import com.mikepenz.aboutlibraries.ui.compose.LibraryDefaults
-import com.mikepenz.aboutlibraries.ui.compose.m3.chipColors
-import com.mikepenz.aboutlibraries.ui.compose.m3.libraryColors
+// import com.mikepenz.aboutlibraries.ui.compose.LibraryDefaults
+// import com.mikepenz.aboutlibraries.ui.compose.m3.chipColors
+// import com.mikepenz.aboutlibraries.ui.compose.m3.libraryColors
 import com.github.fhilgers.compose.application.theme.components.ApplySystemUiTheme
 import com.github.fhilgers.compose.application.theme.components.AvatarStyle
 import com.github.fhilgers.compose.application.theme.components.ButtonStyle
@@ -38,7 +36,7 @@ import com.github.fhilgers.compose.application.theme.components.DropdownMenuItem
 import com.github.fhilgers.compose.application.theme.components.FloatingActionButtonStyle
 import com.github.fhilgers.compose.application.theme.components.IconButtonStyle
 import com.github.fhilgers.compose.application.theme.components.InputAreaStyle
-import com.github.fhilgers.compose.application.theme.components.LibraryStyle
+//import com.github.fhilgers.compose.application.theme.components.LibraryStyle
 import com.github.fhilgers.compose.application.theme.components.ListItemStyle
 import com.github.fhilgers.compose.application.theme.components.LocalContent
 import com.github.fhilgers.compose.application.theme.components.ProgressIndicatorStyle.CircularProgressIndicatorStyle
@@ -446,16 +444,17 @@ class ThemeComponentsImpl : ThemeComponents {
                 containerColor = Color.Transparent,
             )
         ),
-        library = LibraryStyle.default(
-            colors = LibraryDefaults.libraryColors(
-                libraryBackgroundColor = Color.Transparent,
-                licenseChipColors = LibraryDefaults.chipColors(),
-            ),
-            textStyles = LibraryDefaults.libraryTextStyles(
-                defaultOverflow = TextOverflow.Ellipsis,
-                nameMaxLines = 10,
-                versionMaxLines = 2
-            ),
-        ),
+//        library = LibraryStyle.default()
+//        library = LibraryStyle.default(
+//            colors = LibraryDefaults.libraryColors(
+//                libraryBackgroundColor = Color.Transparent,
+//                licenseChipColors = LibraryDefaults.chipColors(),
+//            ),
+//            textStyles = LibraryDefaults.libraryTextStyles(
+//                defaultOverflow = TextOverflow.Ellipsis,
+//                nameMaxLines = 10,
+//                versionMaxLines = 2
+//            ),
+//        ),
     )
 }
