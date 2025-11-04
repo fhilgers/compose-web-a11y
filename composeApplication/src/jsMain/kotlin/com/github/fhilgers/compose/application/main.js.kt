@@ -332,6 +332,12 @@ class CanvasSemanticsOwnerListener(
                 clickListeners.remove(node.id)
             }
 
+            // TODO: Logic
+            // When either RequestFocus or Focused is set, the shadow dom element has to be focusable (e.g. via tabindex or similar)
+            // On focus, we have to actually focus the shadow dom element for the screen reader to actually read the text
+            // For this to properly work with the handlers from compose, we have to propagate keyboard events, the actual focus
+            // event and click events back to the canvas or to the explicit handlers, if they are given.
+
             val requestFocus = node.config.getOrNull(SemanticsActions.RequestFocus)?.action
 
             if (requestFocus != null && listeners[node.id] == null) {
@@ -339,7 +345,7 @@ class CanvasSemanticsOwnerListener(
                 val focusListener = EventListener {
                     // console.log("Focus", document.activeElement)
                     console.log("Focus")
-                    // requestFocus()
+                    requestFocus()
                 };
                 element.addEventListener("focus", focusListener)
                 listeners[node.id] = focusListener
