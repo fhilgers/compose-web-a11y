@@ -4,75 +4,45 @@
 
 package com.github.fhilgers.compose.application
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccessAlarm
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PlainTooltip
-import androidx.compose.material3.RichTooltip
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
+import androidx.compose.material3.*
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TooltipAnchorPosition
-import androidx.compose.material3.TooltipBox
-import androidx.compose.material3.TooltipDefaults
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Connect2xComposeUiApi
-import androidx.compose.ui.ExperimentalComposeUiApi
-import androidx.compose.ui.InternalComposeUiApi
-import androidx.compose.ui.Modifier
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.*
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.PlatformContext
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.semantics.SemanticsNode
-import androidx.compose.ui.semantics.SemanticsOwner
-import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.semantics.getOrNull
-import androidx.compose.ui.semantics.onImeAction
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.util.fastJoinToString
+import androidx.compose.ui.semantics.*
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.window.ComposeViewport
-import androidx.compose.ui.window.documentIsVisible
-import androidx.lifecycle.DefaultLifecycleObserver
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.SavedStateHandle
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.*
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.saveable
 import androidx.navigation.ExperimentalBrowserHistoryApi
-import androidx.navigation.NavDestination.Companion.hasRoute
-import androidx.navigation.bindToBrowserNavigation
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
+import com.github.fhilgers.compose.application.theme.DefaultMessengerColorScheme
+import com.github.fhilgers.compose.application.theme.DefaultMessengerDpConstantValues
+import com.github.fhilgers.compose.application.theme.DefaultMessengerIcons
+import com.github.fhilgers.compose.application.theme.IsFocusHighlighting
+import com.github.fhilgers.compose.application.theme.LocalComponentStyles
+import com.github.fhilgers.compose.application.theme.ThemeComponentsImpl
+import com.github.fhilgers.compose.application.theme.ThemeDarkMessengerColorsImpl
+import com.github.fhilgers.compose.application.theme.ThemeImpl
+import com.github.fhilgers.compose.application.theme.components.ThemedButton
+import com.github.fhilgers.compose.application.theme.components.ThemedSelect
+import com.github.fhilgers.compose.application.theme.components.ThemedSurface
+import com.github.fhilgers.compose.application.theme.md_theme_light_error
 import com.github.fhilgers.compose.library.colorScheme
 import kotlinx.browser.document
 import kotlinx.browser.localStorage
@@ -80,14 +50,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.dom.clear
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.koin.android.annotation.KoinViewModel
-import org.koin.compose.KoinApplication
 import org.koin.compose.currentKoinScope
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.annotation.InjectedParam
@@ -98,17 +66,14 @@ import org.koin.core.parameter.ParametersDefinition
 import org.koin.core.parameter.emptyParametersHolder
 import org.koin.core.qualifier.Qualifier
 import org.koin.core.scope.Scope
-import org.koin.ksp.generated.koinConfiguration
 import org.koin.viewmodel.defaultExtras
 import org.w3c.dom.DocumentReadyState
-import org.w3c.dom.HTMLButtonElement
 import org.w3c.dom.HTMLCanvasElement
 import org.w3c.dom.HTMLDivElement
 import org.w3c.dom.HTMLElement
 import org.w3c.dom.ItemArrayLike
 import org.w3c.dom.LOADING
 import org.w3c.dom.events.EventListener
-import org.w3c.dom.events.KeyboardEvent
 
 // From ComposeWindow.w3c.kt, e.g. the same file where we yeeted the semantics out of
 
@@ -184,8 +149,6 @@ import org.w3c.dom.events.KeyboardEvent
 //}
 
 
-
-
 class CanvasSemanticsOwnerListener(
     val a11yContainer: HTMLDivElement,
     val coroutineScope: CoroutineScope = MainScope(),
@@ -200,7 +163,6 @@ class CanvasSemanticsOwnerListener(
             }
         }
     }
-
 
     override fun onSemanticsOwnerAppended(semanticsOwner: SemanticsOwner) {
         if (findElement(semanticsOwner.id) != null) return
@@ -235,151 +197,40 @@ class CanvasSemanticsOwnerListener(
 
             seen.add(node.id)
 
-//            console.log(node.config.map { it.key.name }.toJsArray())
+            when (val found = findElement(node.id)) {
+                null -> {
+                    // the node does not exist we need to create a new one
+                    val el = basicHTMLElement(node)
+                    setAttrs(el, node)
 
-            val role = node.config.getOrNull(SemanticsProperties.Role)
+                    val parentElement = node.parent?.id?.let(::findElement) ?: a11yContainer
+                    val nextElement = node.parent?.let {
+                        val index = it.children.indexOf(node).takeIf { it >= 0 } ?: return@let null
+                        it.children.getOrNull(index + 1)?.id?.let(::findElement)
+                    }
 
-            val element = findElement(node.id) ?: run {
-//                console.log("Creating new element for ${node.id} as it does not exist yet")
-                val element = if (role == Role.Button) {
-                    val el = document.createElement("button") as HTMLButtonElement
-                    el.setAttribute("type", "button")
-                    el
-                } else {
-                    document.createElement("div") as HTMLDivElement
+                    if (nextElement != null) {
+                        parentElement.insertBefore(el, nextElement)
+                    } else {
+                        parentElement.appendChild(el)
+                    }
                 }
 
-
-                val canvas = a11yContainer.previousElementSibling?.previousElementSibling as? HTMLCanvasElement
-                element.addEventListener("keydown", EventListener {
-                    it.stopImmediatePropagation()
-                    it.stopPropagation()
-                    it.preventDefault()
-                    val x = js("new it.constructor(it.type, it);")
-                    canvas?.dispatchEvent(x)
-                });
-                element.addEventListener("keyup", EventListener {
-                    it.stopImmediatePropagation()
-                    it.stopPropagation()
-                    it.preventDefault()
-                    val x = js("new it.constructor(it.type, it);")
-                    canvas?.dispatchEvent(x)
-                });
-
-                val parentElement = node.parent?.id?.let(::findElement) ?: a11yContainer
-
-//                console.log("Parent element of ${node.id} is ${parentElement.getAttribute("semantics-id")}")
-
-                element.setAttribute("semantics-id", node.id.toString())
-                element.style.position = "fixed"
-                element.style.whiteSpace = "pre"
-
-                val nextElement = node.parent?.let {
-                    val index = it.children.indexOf(node).takeIf { it >= 0 } ?: return@let null
-                    it.children.getOrNull(index + 1)?.id?.let(::findElement)
+                else -> {
+                    // the node does exist, however on the first render the node typically does not have a role
+                    // so on the first render we put in a div and later on need to replace it with the correct element.
+                    val el = basicHTMLElement(node)
+                    if (found.tagName != el.tagName) {
+                        setAttrs(el, node)
+                        found.replaceWith(el)
+                    } else {
+                        setAttrs(found, node)
+                    }
                 }
-
-//                console.log("Element after this element is ${nextElement?.getAttribute("semantics-id")}")
-
-                if (nextElement != null) {
-//                    console.log("Inserting element before ${nextElement.getAttribute("semantics-id")}")
-                    parentElement.insertBefore(element, nextElement)
-                } else {
-//                    console.log("Inserting element at the end")
-                    parentElement.appendChild(element)
-                }
-
-                element
             }
 
+            // TODO onLayoutChange needs to find the element again, but we already find it above so we could be more efficient
             onLayoutChange(semanticsOwner, node.id)
-
-            // element.clearAll()
-
-            when (role) {
-                Role.Button -> element.setAttribute("role", "button")
-                Role.Image -> element.setAttribute("role", "img")
-            }
-
-
-
-            val isDialog = node.config.getOrNull(SemanticsProperties.IsDialog)
-
-            if (isDialog != null) {
-                element.setAttribute("role", "dialog")
-                element.setAttribute("aria-modal", "true")
-            }
-
-            val text = node.config.getOrNull(SemanticsProperties.Text)
-
-            if (text != null) element.innerText = text.joinToString()
-
-            val onClick = node.config.getOrNull(SemanticsActions.OnClick)?.action
-
-            if (onClick != null && clickListeners[node.id] == null) {
-
-                val clickListener = EventListener {
-                    console.log("Click")
-                    onClick()
-                }
-
-                element.addEventListener("click", clickListener)
-                clickListeners[node.id] = clickListener
-            } else if (onClick == null && clickListeners[node.id] != null) {
-                element.removeEventListener(
-                    "click", clickListeners[node.id]
-                )
-                clickListeners.remove(node.id)
-            }
-
-            // TODO: Logic
-            // When either RequestFocus or Focused is set, the shadow dom element has to be focusable (e.g. via tabindex or similar)
-            // On focus, we have to actually focus the shadow dom element for the screen reader to actually read the text
-            // For this to properly work with the handlers from compose, we have to propagate keyboard events, the actual focus
-            // event and click events back to the canvas or to the explicit handlers, if they are given.
-
-            val requestFocus = node.config.getOrNull(SemanticsActions.RequestFocus)?.action
-
-            if (requestFocus != null && listeners[node.id] == null) {
-                element.setAttribute("tabindex", "0")
-                val focusListener = EventListener {
-                    // console.log("Focus", document.activeElement)
-                    console.log("Focus")
-                    requestFocus()
-                };
-                element.addEventListener("focus", focusListener)
-                listeners[node.id] = focusListener
-            } else if (requestFocus == null && listeners[node.id] != null) {
-                element.removeEventListener(
-                    "focus", listeners[node.id]
-                )
-                listeners.remove(node.id)
-            }
-
-            val focussed = node.config.getOrNull(SemanticsProperties.Focused)
-
-            if (focussed == true) {
-                element.focus()
-            }
-
-            val title = node.config.getOrNull(SemanticsProperties.PaneTitle)
-            val description =
-                node.config.getOrNull(SemanticsProperties.ContentDescription)?.joinToString()
-            node.config.getOrNull(SemanticsProperties.IsPopup)
-
-            if (title != null) {
-                if (title == "tooltip") {
-                    element.setAttribute("role", "tooltip")
-                } else {
-                    element.setAttribute("aria-label", title)
-                }
-                if (description != null) {
-                    element.setAttribute("aria-description", description)
-                }
-            } else if (description != null) {
-                element.setAttribute("aria-label", description)
-            }
-
 
             queue.addAll(node.children)
         }
@@ -392,10 +243,7 @@ class CanvasSemanticsOwnerListener(
         }
     }
 
-    override fun onLayoutChange(
-        semanticsOwner: SemanticsOwner, semanticsNodeId: Int
-    ) {
-
+    override fun onLayoutChange(semanticsOwner: SemanticsOwner, semanticsNodeId: Int) {
         fun inner(semanticsNodeId: Int) {
             val node = findNode(semanticsNodeId, semanticsOwner.rootSemanticsNode) ?: return
             val element = findElement(semanticsNodeId) ?: return
@@ -426,9 +274,7 @@ class CanvasSemanticsOwnerListener(
         semanticsId: Int, parent: SemanticsNode
     ): SemanticsNode? {
         if (parent.id == semanticsId) return parent
-
         for (child in parent.children) return findNode(semanticsId, child) ?: continue
-
         return null
     }
 
@@ -437,8 +283,10 @@ class CanvasSemanticsOwnerListener(
     ): HTMLElement? {
         if (parent.getAttribute("semantics-id")?.toInt() == semanticsId) return parent
 
-        for (child in parent.children.asSequence()
-            .filterIsInstance<HTMLElement>()) return findElement(semanticsId, child) ?: continue
+        for (child in parent.children.asSequence().filterIsInstance<HTMLElement>()) return findElement(
+            semanticsId,
+            child
+        ) ?: continue
 
         return null
     }
@@ -465,8 +313,119 @@ class CanvasSemanticsOwnerListener(
         )
     }
 
+
     private val SemanticsOwner.id: Int
         get() = rootSemanticsNode.id
+
+    private fun basicHTMLElement(node: SemanticsNode): HTMLElement {
+        return document.createElement(
+            when (node.config.getOrNull(SemanticsProperties.Role)) {
+                Role.Button -> "button"
+                Role.Checkbox -> "div"
+                Role.Switch -> "div"
+                Role.RadioButton -> "div"
+                Role.Tab -> "div"
+                Role.Image -> "div"
+                Role.DropdownList -> "input"
+                Role.ValuePicker -> "div"
+                Role.Carousel -> "div"
+                else -> "div"
+            }
+        ) as HTMLElement
+    }
+
+    private fun setAttrs(el: HTMLElement, node: SemanticsNode) {
+        el.setAttribute("semantics-id", node.id.toString())
+        el.style.position = "fixed"
+        el.style.whiteSpace = "pre"
+
+        when (node.config.getOrNull(SemanticsProperties.Role)) {
+            Role.DropdownList -> {
+                // https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Roles/combobox_role
+                el.setAttribute("role", "combobox")
+                node.config.getOrNull(SemanticsProperties.ToggleableState)?.let {
+                    when (it) {
+                        ToggleableState.On -> el.setAttribute("aria-expanded", "true")
+                        ToggleableState.Off -> el.setAttribute("aria-expanded", "false")
+                        ToggleableState.Indeterminate -> {} // better nothing than something wrong
+                    }
+                }
+            }
+        }
+
+        val canvas = a11yContainer.previousElementSibling?.previousElementSibling as? HTMLCanvasElement
+        for (event in listOf("keydown", "keyup")) el.addEventListener(event, EventListener {
+            it.stopImmediatePropagation()
+            it.stopPropagation()
+            it.preventDefault()
+            val x = js("new it.constructor(it.type, it);")
+            canvas?.dispatchEvent(x)
+        })
+
+        val isDialog = node.config.getOrNull(SemanticsProperties.IsDialog)
+
+        if (isDialog != null) {
+            el.setAttribute("role", "dialog")
+            el.setAttribute("aria-modal", "true")
+        }
+
+        val text = node.config.getOrNull(SemanticsProperties.Text)
+        if (text != null) el.innerText = text.joinToString()
+
+        val onClick = node.config.getOrNull(SemanticsActions.OnClick)?.action
+        if (onClick != null && clickListeners[node.id] == null) {
+            val clickListener = EventListener {
+                console.log("Click")
+                onClick()
+            }
+
+            el.addEventListener("click", clickListener)
+            clickListeners[node.id] = clickListener
+        } else if (onClick == null && clickListeners[node.id] != null) {
+            el.removeEventListener("click", clickListeners[node.id])
+            clickListeners.remove(node.id)
+        }
+
+        // TODO: Logic
+        // When either RequestFocus or Focused is set, the shadow dom element has to be focusable (e.g. via tabindex or similar)
+        // On focus, we have to actually focus the shadow dom element for the screen reader to actually read the text
+        // For this to properly work with the handlers from compose, we have to propagate keyboard events, the actual focus
+        // event and click events back to the canvas or to the explicit handlers, if they are given.
+
+        val requestFocus = node.config.getOrNull(SemanticsActions.RequestFocus)?.action
+        if (requestFocus != null && listeners[node.id] == null) {
+            el.setAttribute("tabindex", "0")
+            val focusListener = EventListener {
+                // console.log("Focus", document.activeElement)
+                console.log("Focus")
+                requestFocus()
+            };
+            el.addEventListener("focus", focusListener)
+            listeners[node.id] = focusListener
+        } else if (requestFocus == null && listeners[node.id] != null) {
+            el.removeEventListener("focus", listeners[node.id])
+            listeners.remove(node.id)
+        }
+
+        if (node.config.getOrNull(SemanticsProperties.Focused) == true)
+            el.focus()
+
+
+        val title = node.config.getOrNull(SemanticsProperties.PaneTitle)
+        val description = node.config.getOrNull(SemanticsProperties.ContentDescription)?.joinToString()
+        if (title != null) {
+            if (title == "tooltip") {
+                el.setAttribute("role", "tooltip")
+            } else {
+                el.setAttribute("aria-label", title)
+            }
+            if (description != null) {
+                el.setAttribute("aria-description", description)
+            }
+        } else if (description != null) {
+            el.setAttribute("aria-label", description)
+        }
+    }
 }
 
 
@@ -495,8 +454,7 @@ fun AccessibleComposeViewport(content: @Composable () -> Unit = {}) {
     onDomReady {
         val body = document.body ?: error("failed to find <body> element")
 
-        @OptIn(Connect2xComposeUiApi::class)
-        ComposeViewport(
+        @OptIn(Connect2xComposeUiApi::class) ComposeViewport(
             viewportContainer = body,
             semanticsListener = { CanvasSemanticsOwnerListener(it) },
             configure = { },
@@ -624,9 +582,7 @@ class MyModule {
         @InjectedParam lifecycleOwner: LifecycleOwner,
         @InjectedParam savedStateHandle: SavedStateHandle,
     ) = DialogViewModel(
-        myComponent = myComponent,
-        lifecycleOwner = lifecycleOwner,
-        savedStateHandle = savedStateHandle
+        myComponent = myComponent, lifecycleOwner = lifecycleOwner, savedStateHandle = savedStateHandle
     )
 }
 
@@ -653,18 +609,16 @@ fun main2() = AccessibleComposeViewport {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier.fillMaxSize(),
-            )  {
+            ) {
 
                 TooltipBox(
                     positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
                         TooltipAnchorPosition.Above
-                    ),
-                    tooltip = {
+                    ), tooltip = {
                         PlainTooltip { Text("My Text") }
-                    },
-                    state = rememberTooltipState()
+                    }, state = rememberTooltipState()
                 ) {
-                    IconButton(onClick =  {}) {
+                    IconButton(onClick = {}) {
                         Icon(Icons.Default.AccessAlarm, contentDescription = "Alarm Clock")
                     }
                 }
@@ -677,82 +631,98 @@ fun main2() = AccessibleComposeViewport {
 
 
 @OptIn(
-    ExperimentalMaterial3Api::class,
-    ExperimentalBrowserHistoryApi::class
+    ExperimentalMaterial3Api::class, ExperimentalBrowserHistoryApi::class
 )
 fun main() = AccessibleComposeViewport {
-    KoinApplication(
-        application = SimpleApplication.koinConfiguration(),
-    ) {
-        val navController = rememberNavController()
-
-        MaterialTheme(
-            colorScheme = colorScheme,
+    CompositionLocalProvider(IsFocusHighlighting provides true) {
+        ThemeImpl().create(
+            messengerColors = ThemeDarkMessengerColorsImpl().create(md_theme_light_error),
+            messengerDpConstants = DefaultMessengerDpConstantValues,
+            messengerIcons = DefaultMessengerIcons,
+            shapes = Shapes(),
+            typography = Typography(),
+            density = LocalDensity.current,
+            componentStyles = ThemeComponentsImpl(),
+            colorScheme = DefaultMessengerColorScheme
         ) {
-            Scaffold(
-                topBar = {
-                    TopAppBar(title = {
-                        // Text("StoryBook")
-                    }, navigationIcon = {
-                        val entry by navController.currentBackStackEntryAsState()
-                        val showBackButton = entry?.destination?.hasRoute<Navigator>() != true
-
-                        AnimatedVisibility(showBackButton) {
-                            TooltipBox(
-                                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
-                                    TooltipAnchorPosition.Above
-                                ),
-                                tooltip = {
-                                    RichTooltip { Text("Return to Navigation") }
-                                },
-                                state = rememberTooltipState(false),
-                            ) {
-                                IconButton(onClick = { navController.popBackStack() }) {
-                                    Icon(
-                                        Icons.AutoMirrored.Default.ArrowBack, "Return to Navigation"
-                                    )
-                                }
-                            }
-                        }
-
-                    })
-                }) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    NavHost(
-                        navController = navController,
-                        startDestination = Navigator,
-                        enterTransition = {
-                            fadeIn(animationSpec = tween(100))
-                        },
-                        exitTransition = {
-                            fadeOut(animationSpec = tween(100))
-                        },
-                        popEnterTransition = {
-                            fadeIn(animationSpec = tween(100))
-                        },
-                        popExitTransition = {
-                            fadeOut(animationSpec = tween(100))
-                        },
-                    ) {
-                        composable<SimpleText> { SimpleText() }
-                        composable<SimpleButton> { SimpleButton() }
-                        composable<SimpleAlertDialog> { SimpleAlertDialog() }
-                        composable<Navigator> {
-                            Navigator(
-                                navigate = { navController.navigate(it) })
-                        }
-                    }
-
-                    LaunchedEffect(navController) {
-                        navController.bindToBrowserNavigation()
+            ThemedSurface(Modifier.fillMaxSize(), LocalComponentStyles.current.background) {
+                Box(Modifier.fillMaxSize(), Alignment.Center) {
+                    Column {
+                        val l = listOf("a", "b", "c")
+                        var v by remember { mutableStateOf(l[0]) }
+                        ThemedSelect(
+                            value = v,
+                            onValueChange = { v = it },
+                            options = l,
+                            render = { it }
+                        )
+                        ThemedButton(onClick = { println("aaaaaaaaaaaaaaaaaaa") }) { Text(v) }
                     }
                 }
             }
         }
     }
+}
+
+
+//        val navController = rememberNavController()
+
+//    KoinApplication(application = SimpleApplication.koinConfiguration()) {
+//        Scaffold(
+//            topBar = {
+//                TopAppBar(title = {
+//                    // Text("StoryBook")
+//                }, navigationIcon = {
+//                    val entry by navController.currentBackStackEntryAsState()
+//                    val showBackButton = entry?.destination?.hasRoute<Navigator>() != true
+//
+//                    AnimatedVisibility(showBackButton) {
+//                        TooltipBox(
+//                            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+//                                TooltipAnchorPosition.Above
+//                            ),
+//                            tooltip = {
+//                                RichTooltip { Text("Return to Navigation") }
+//                            },
+//                            state = rememberTooltipState(false),
+//                        ) {
+//                            IconButton(onClick = { navController.popBackStack() }) {
+//                                Icon(
+//                                    Icons.AutoMirrored.Default.ArrowBack, "Return to Navigation"
+//                                )
+//                            }
+//                        }
+//                    }
+//
+//                })
+//            }) {
+//            Box(
+//                contentAlignment = Alignment.Center,
+//                modifier = Modifier.fillMaxSize(),
+//            ) {
+//                NavHost(
+//                    navController = navController,
+//                    startDestination = Navigator,
+//                    enterTransition = { fadeIn(animationSpec = tween(100)) },
+//                    exitTransition = { fadeOut(animationSpec = tween(100)) },
+//                    popEnterTransition = { fadeIn(animationSpec = tween(100)) },
+//                    popExitTransition = { fadeOut(animationSpec = tween(100)) },
+//                ) {
+//                    composable<SimpleText> { SimpleText() }
+//                    composable<SimpleButton> { SimpleButton() }
+//                    composable<SimpleAlertDialog> { SimpleAlertDialog() }
+//                    composable<Navigator> {
+//                        Navigator(
+//                            navigate = { navController.navigate(it) })
+//                    }
+//                }
+//
+//                LaunchedEffect(navController) {
+//                    navController.bindToBrowserNavigation()
+//                }
+//            }
+//        }
+//    }
 
 
 //    MaterialExpressiveTheme(
@@ -784,4 +754,3 @@ fun main() = AccessibleComposeViewport {
 //            }
 //        }
 //    }
-}
