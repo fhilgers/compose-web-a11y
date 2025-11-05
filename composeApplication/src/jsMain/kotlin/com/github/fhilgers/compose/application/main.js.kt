@@ -12,12 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessAlarm
 import androidx.compose.material3.*
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
@@ -31,18 +26,8 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.saveable
 import androidx.navigation.ExperimentalBrowserHistoryApi
-import com.github.fhilgers.compose.application.theme.DefaultMessengerColorScheme
-import com.github.fhilgers.compose.application.theme.DefaultMessengerDpConstantValues
-import com.github.fhilgers.compose.application.theme.DefaultMessengerIcons
-import com.github.fhilgers.compose.application.theme.IsFocusHighlighting
-import com.github.fhilgers.compose.application.theme.LocalComponentStyles
-import com.github.fhilgers.compose.application.theme.ThemeComponentsImpl
-import com.github.fhilgers.compose.application.theme.ThemeDarkMessengerColorsImpl
-import com.github.fhilgers.compose.application.theme.ThemeImpl
-import com.github.fhilgers.compose.application.theme.components.ThemedButton
-import com.github.fhilgers.compose.application.theme.components.ThemedSelect
-import com.github.fhilgers.compose.application.theme.components.ThemedSurface
-import com.github.fhilgers.compose.application.theme.md_theme_light_error
+import com.github.fhilgers.compose.application.theme.*
+import com.github.fhilgers.compose.application.theme.components.*
 import com.github.fhilgers.compose.library.colorScheme
 import kotlinx.browser.document
 import kotlinx.browser.localStorage
@@ -321,18 +306,25 @@ class CanvasSemanticsOwnerListener(
         return document.createElement(
             when (node.config.getOrNull(SemanticsProperties.Role)) {
                 Role.Button -> "button"
-                Role.Checkbox -> "div"
+                Role.Checkbox -> "input"
                 Role.Switch -> "div"
-                Role.RadioButton -> "div"
+                Role.RadioButton -> "input"
                 Role.Tab -> "div"
                 Role.Image -> "div"
-                Role.DropdownList -> "input"
+                Role.DropdownList -> when (node.config.getOrNull(SemanticsProperties.IsEditable)) {
+                    true -> "input"
+                    else -> "button"
+                }
+
                 Role.ValuePicker -> "div"
                 Role.Carousel -> "div"
                 else -> "div"
             }
         ) as HTMLElement
     }
+
+    // TODO this location may be different
+    private val canvas = a11yContainer.previousElementSibling?.previousElementSibling as? HTMLCanvasElement
 
     private fun setAttrs(el: HTMLElement, node: SemanticsNode) {
         el.setAttribute("semantics-id", node.id.toString())
@@ -351,9 +343,32 @@ class CanvasSemanticsOwnerListener(
                     }
                 }
             }
+
+            Role.RadioButton -> {
+                el.setAttribute("type", "radio")
+                node.config.getOrNull(SemanticsProperties.Selected)?.let {
+                    el.setAttribute("aria-checked", it.toString())
+                }
+                node.config.getOrNull(SemanticsProperties.Text)?.let {
+                    el.setAttribute("aria-label", it.joinToString())
+                }
+            }
+
+            Role.Checkbox -> {
+                el.setAttribute("type", "checkbox")
+                node.config.getOrNull(SemanticsProperties.Text)?.let {
+                    el.setAttribute("aria-label", it.joinToString())
+                }
+                node.config.getOrNull(SemanticsProperties.ToggleableState)?.let {
+                    when (it) {
+                        ToggleableState.On -> el.setAttribute("aria-checked", "true")
+                        ToggleableState.Off -> el.setAttribute("aria-checked", "false")
+                        ToggleableState.Indeterminate -> el.setAttribute("aria-checked", "mixed")
+                    }
+                }
+            }
         }
 
-        val canvas = a11yContainer.previousElementSibling?.previousElementSibling as? HTMLCanvasElement
         for (event in listOf("keydown", "keyup")) el.addEventListener(event, EventListener {
             it.stopImmediatePropagation()
             it.stopPropagation()
@@ -362,49 +377,61 @@ class CanvasSemanticsOwnerListener(
             canvas?.dispatchEvent(x)
         })
 
-        val isDialog = node.config.getOrNull(SemanticsProperties.IsDialog)
-
-        if (isDialog != null) {
+        node.config.getOrNull(SemanticsProperties.IsDialog)?.let {
             el.setAttribute("role", "dialog")
-            el.setAttribute("aria-modal", "true")
+//            el.setAttribute("aria-modal", "true")
         }
 
-        val text = node.config.getOrNull(SemanticsProperties.Text)
-        if (text != null) el.innerText = text.joinToString()
+        node.config.getOrNull(SemanticsProperties.Text)?.let {
+            el.innerText = it.joinToString()
+        }
 
-        val onClick = node.config.getOrNull(SemanticsActions.OnClick)?.action
-        if (onClick != null && clickListeners[node.id] == null) {
-            val clickListener = EventListener {
-                console.log("Click")
-                onClick()
+        when (val onClick = node.config.getOrNull(SemanticsActions.OnClick)?.action) {
+            null -> {
+                if (clickListeners[node.id] != null) {
+                    el.removeEventListener("click", clickListeners[node.id])
+                    clickListeners.remove(node.id)
+                }
             }
 
-            el.addEventListener("click", clickListener)
-            clickListeners[node.id] = clickListener
-        } else if (onClick == null && clickListeners[node.id] != null) {
-            el.removeEventListener("click", clickListeners[node.id])
-            clickListeners.remove(node.id)
+            else -> {
+                if (clickListeners[node.id] == null) {
+                    val clickListener = EventListener {
+                        console.log("Click")
+                        onClick()
+                    }
+
+                    el.addEventListener("click", clickListener)
+                    clickListeners[node.id] = clickListener
+                }
+            }
         }
+
 
         // TODO: Logic
         // When either RequestFocus or Focused is set, the shadow dom element has to be focusable (e.g. via tabindex or similar)
         // On focus, we have to actually focus the shadow dom element for the screen reader to actually read the text
         // For this to properly work with the handlers from compose, we have to propagate keyboard events, the actual focus
         // event and click events back to the canvas or to the explicit handlers, if they are given.
+        when (val requestFocus = node.config.getOrNull(SemanticsActions.RequestFocus)?.action) {
+            null -> {
+                if (listeners[node.id] != null) {
+                    el.removeEventListener("focus", listeners[node.id])
+                    listeners.remove(node.id)
+                }
+            }
 
-        val requestFocus = node.config.getOrNull(SemanticsActions.RequestFocus)?.action
-        if (requestFocus != null && listeners[node.id] == null) {
-            el.setAttribute("tabindex", "0")
-            val focusListener = EventListener {
-                // console.log("Focus", document.activeElement)
-                console.log("Focus")
-                requestFocus()
-            };
-            el.addEventListener("focus", focusListener)
-            listeners[node.id] = focusListener
-        } else if (requestFocus == null && listeners[node.id] != null) {
-            el.removeEventListener("focus", listeners[node.id])
-            listeners.remove(node.id)
+            else -> {
+                if (listeners[node.id] == null) {
+                    val focusListener = EventListener {
+                        console.log("Focus")
+                        requestFocus()
+                    }
+
+                    el.addEventListener("focus", focusListener)
+                    listeners[node.id] = focusListener
+                }
+            }
         }
 
         if (node.config.getOrNull(SemanticsProperties.Focused) == true)
@@ -623,6 +650,7 @@ fun main2() = AccessibleComposeViewport {
                     }
                 }
 
+
             }
         }
     }
@@ -656,7 +684,47 @@ fun main() = AccessibleComposeViewport {
                             options = l,
                             render = { it }
                         )
+
                         ThemedButton(onClick = { println("aaaaaaaaaaaaaaaaaaa") }) { Text(v) }
+
+                        ThemedUserAvatar(initials = "MV")
+
+                        var selected by remember { mutableStateOf(false) }
+                        ThemedListItemRadioButton(
+                            headlineContent = { Text("my title is cool") },
+                            selected = selected,
+                            onChange = { selected = !selected }
+                        )
+
+
+                        var selectedThemedListItemCheckbox by remember { mutableStateOf(false) }
+                        ThemedListItemCheckbox(
+                            headlineContent = { Text("Max mustermann") },
+                            selected = selectedThemedListItemCheckbox,
+                            onChange = { selectedThemedListItemCheckbox = !selectedThemedListItemCheckbox }
+                        )
+
+                        var openDialog by remember { mutableStateOf(false) }
+                        ThemedListItemButton(
+                            headlineContent = { Text("open dialog") },
+                            onClick = { openDialog = true }
+                        )
+
+                        if (openDialog) ThemedAdaptiveDialog(onDismissRequest = { openDialog = false }) {
+                            AdaptiveDialogHeader {
+                                Text("the dialog header")
+                            }
+                            AdaptiveDialogContent {
+                                Text("some content here")
+                            }
+                            AdaptiveDialogFooter {
+                                ThemedButton({ openDialog = false }) { Text("dismiss") }
+                                ThemedButton(
+                                    { openDialog = false },
+                                    style = MaterialTheme.components.primaryButton
+                                ) { Text("accept") }
+                            }
+                        }
                     }
                 }
             }
