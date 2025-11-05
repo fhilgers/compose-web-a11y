@@ -1,0 +1,18 @@
+package com.github.fhilgers.compose.application.common
+
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+
+@Composable
+fun EmojiPopup(
+    isOpen: Boolean,
+    onDismiss: () -> Unit,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    isByMe: Boolean,
+) {
+    TimelinePopup(isOpen, onDismiss, modifier, isByMe) {
+        EmojiSelector(Modifier.fillMaxSize(), onSelect, onDismiss)
+    }
+}

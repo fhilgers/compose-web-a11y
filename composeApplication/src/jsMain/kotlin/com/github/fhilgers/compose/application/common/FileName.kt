@@ -1,0 +1,44 @@
+package com.github.fhilgers.compose.application.common
+
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+
+@Composable
+fun FileName(fileName: String) {
+    Text(
+        fileName,
+        style = MaterialTheme.typography.bodySmall,
+        overflow = TextOverflow.Ellipsis,
+        maxLines = 3,
+        modifier = Modifier.sizeIn(maxWidth = 200.dp)
+    )
+}
+
+//@Composable
+//fun FileInfo(element: RoomMessageTimelineElementViewModel.FileBased<*>, modifier: Modifier = Modifier) {
+//    Text(
+//        buildAnnotatedString {
+//            append(element.name)
+//            pushStyle(SpanStyle(fontWeight = FontWeight.Light))
+//            when (element) {
+//                is RoomMessageTimelineElementViewModel.FileBased.File -> {
+//                    append(element.size)
+//                }
+//
+//                is RoomMessageTimelineElementViewModel.FileBased.Audio -> {
+//                    append(element.duration.ifNotNull { formatDuration(it.milliseconds) })
+//                    append(element.size)
+//                }
+//            }
+//        },
+//        style = MaterialTheme.typography.bodySmall,
+//        overflow = TextOverflow.Ellipsis,
+//        maxLines = 3,
+//        modifier = modifier.sizeIn(maxWidth = 200.dp)
+//    )
+//}
