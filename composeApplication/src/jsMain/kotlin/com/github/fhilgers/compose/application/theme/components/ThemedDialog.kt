@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.github.fhilgers.compose.application.common.Tooltip
 import com.github.fhilgers.compose.application.theme.components
 
 data class DialogStyle(

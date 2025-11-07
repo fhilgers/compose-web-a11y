@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
@@ -19,10 +20,13 @@ import androidx.compose.ui.unit.dp
 import com.github.fhilgers.compose.application.common.modifier.tooltipAnchorSemantics
 import com.github.fhilgers.compose.application.common.modifier.tooltipGestures
 import com.github.fhilgers.compose.application.theme.components
-import com.github.fhilgers.compose.application.theme.components.EscapeKeyPressed
 import com.github.fhilgers.compose.application.theme.components.TooltipStyle
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlin.time.Duration
+
+val EscapeKeyPressed = compositionLocalOf<Flow<Unit>> { flowOf() }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
