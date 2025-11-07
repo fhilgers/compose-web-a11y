@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.github.fhilgers.compose.application.common.icons.HelpIcon
@@ -26,7 +27,7 @@ internal data class RadioSettingOption(
 )
 
 @Composable
-internal fun <T: Any> ColumnScope.RadioSetting(
+internal fun <T : Any> ColumnScope.RadioSetting(
     text: String,
     explanation: String? = null,
     options: Map<T, RadioSettingOption>,
@@ -81,9 +82,14 @@ internal fun <T : Any> ColumnScope.RadioSetting(
                         val nextIndex = currentIndex.plus(1).coerceIn(keys.indices)
                         keys[nextIndex]
                     },
-                )
+                ).semantics {
+                    collectionInfo = CollectionInfo(
+                        rowCount = options.size,
+                        columnCount = 1
+                    )
+                }
             ) {
-                for ((key, option) in options) {
+                options.entries.forEachIndexed { index, (key, option) ->
                     RovingFocusItem(key, options.keys.first()) {
                         val (optionText, optionExplanation, optionEnabled, optionStyle) = option
                         ThemedListItemRadioButton(
@@ -92,7 +98,15 @@ internal fun <T : Any> ColumnScope.RadioSetting(
                             leadingContent = if (optionExplanation != null) {
                                 @Composable { HelpIcon(optionExplanation) }
                             } else null,
-                            modifier = Modifier.rovingFocusItem(),
+                            modifier = Modifier.rovingFocusItem().semantics {
+                                // TODO does index start at 0?
+                                collectionItemInfo = CollectionItemInfo(
+                                    rowIndex = index,
+                                    rowSpan = 1,
+                                    columnIndex = 0,
+                                    columnSpan = 1
+                                )
+                            },
                             enabled = enabled && optionEnabled,
                             selected = value == key,
                             onChange = { set(key) },

@@ -20,6 +20,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import com.github.fhilgers.compose.application.common.modifier.focusHighlighting
 import com.github.fhilgers.compose.application.theme.components.buttonPointerModifier
@@ -76,7 +78,10 @@ fun ExpandableSection(
                 modifier = Modifier
                     .clickable(interactionSource, LocalIndication.current) {
                         expanded.value = !expanded.value
-                    }.semantics { role = Role.Button }
+                    }.semantics {
+                        role = Role.Button
+                        toggleableState = if (expanded.value) ToggleableState.On else ToggleableState.Off
+                    }
                     .buttonPointerModifier(true).padding(16.dp)
                     .fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
