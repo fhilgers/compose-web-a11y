@@ -58,10 +58,12 @@ import org.koin.core.qualifier.Qualifier
 import org.koin.core.scope.Scope
 import org.koin.viewmodel.defaultExtras
 import org.w3c.dom.DocumentReadyState
+import org.w3c.dom.HTMLButtonElement
 import org.w3c.dom.HTMLCanvasElement
 import org.w3c.dom.HTMLDivElement
 import org.w3c.dom.HTMLElement
 import org.w3c.dom.HTMLInputElement
+import org.w3c.dom.HTMLProgressElement
 import org.w3c.dom.ItemArrayLike
 import org.w3c.dom.LOADING
 import org.w3c.dom.events.EventListener
@@ -315,7 +317,7 @@ class CanvasSemanticsOwnerListener(
             when (node.config.getOrNull(SemanticsProperties.Role)) {
                 Role.Button -> "button"
                 Role.Checkbox -> "input"
-                Role.Switch -> "div"
+                Role.Switch -> "button"
                 Role.RadioButton -> "input"
                 Role.Tab -> "div"
                 Role.Image -> "div"
@@ -326,7 +328,14 @@ class CanvasSemanticsOwnerListener(
 
                 Role.ValuePicker -> "div"
                 Role.Carousel -> "div"
-                else -> "div"
+                else -> {
+                    when {
+                        node.config.getOrNull(SemanticsProperties.ProgressBarRangeInfo) != null ->
+                            "progress"
+
+                        else -> "div"
+                    }
+                }
             }
         ) as HTMLElement
     }
@@ -335,6 +344,16 @@ class CanvasSemanticsOwnerListener(
     private val canvas = a11yContainer.previousElementSibling?.previousElementSibling as? HTMLCanvasElement
 
     private fun setAttrs(el: HTMLElement, node: SemanticsNode) {
+        fun <T> setIf(attr: String, prop: SemanticsPropertyKey<T>, value: (T) -> String?) =
+            node.config.getOrNull(prop)?.let {
+                val v = value(it) ?: return@let null
+                el.setAttribute(attr, v)
+            }
+
+        fun <T> doIf(prop: SemanticsPropertyKey<T>, value: (T) -> Unit) =
+            node.config.getOrNull(prop)?.let { value(it) }
+
+
         el.setAttribute("semantics-id", node.id.toString())
         el.style.position = "fixed"
         el.style.whiteSpace = "pre"
@@ -343,52 +362,60 @@ class CanvasSemanticsOwnerListener(
             Role.DropdownList -> {
                 // https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Roles/combobox_role
                 el.setAttribute("role", "combobox")
-                node.config.getOrNull(SemanticsProperties.ToggleableState)?.let {
+                setIf("aria-expanded", SemanticsProperties.ToggleableState) {
                     when (it) {
-                        ToggleableState.On -> el.setAttribute("aria-expanded", "true")
-                        ToggleableState.Off -> el.setAttribute("aria-expanded", "false")
-                        ToggleableState.Indeterminate -> {} // better nothing than something wrong
+                        ToggleableState.On -> "true"
+                        ToggleableState.Off -> "false"
+                        ToggleableState.Indeterminate -> null // better nothing than something wrong
                     }
                 }
             }
 
             Role.RadioButton -> {
-                require(el is HTMLInputElement)
+                require(el is HTMLInputElement) { "Role.RadioButton is not HTMLInputElement" }
                 el.setAttribute("type", "radio")
-                node.config.getOrNull(SemanticsProperties.Text)?.let {
-                    el.setAttribute("aria-label", it.joinToString())
-                }
+                setIf("aria-label", SemanticsProperties.Text) { it.joinToString() }
                 node.config.getOrNull(SemanticsProperties.Selected)?.let {
                     el.asDynamic().checked = it
                 }
             }
 
             Role.Checkbox -> {
-                require(el is HTMLInputElement)
+                require(el is HTMLInputElement) { "Role.Checkbox is not HTMLInputElement" }
                 el.setAttribute("type", "checkbox")
-                node.config.getOrNull(SemanticsProperties.Text)?.let {
-                    el.setAttribute("aria-label", it.joinToString())
-                }
+                setIf("aria-label", SemanticsProperties.Text) { it.joinToString() }
                 node.config.getOrNull(SemanticsProperties.Selected)?.let {
                     el.asDynamic().checked = it
                 }
             }
 
             Role.Button -> {
-                node.config.getOrNull(SemanticsProperties.ToggleableState)?.let {
+                setIf("aria-expanded", SemanticsProperties.ToggleableState) {
                     when (it) {
-                        ToggleableState.On -> el.setAttribute("aria-expanded", "true")
-                        ToggleableState.Off -> el.setAttribute("aria-expanded", "false")
-                        ToggleableState.Indeterminate -> {} // better nothing than something wrong
+                        ToggleableState.On -> "true"
+                        ToggleableState.Off -> "false"
+                        ToggleableState.Indeterminate -> null // better nothing than something wrong
                     }
                 }
             }
 
-            else -> {
-                node.config.getOrNull(SemanticsProperties.Text)?.let {
-                    el.setAttribute("aria-label", it.joinToString())
-                }
+            Role.Switch -> {
+                // https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Roles/switch_role
+                require(el is HTMLButtonElement) { "Role.Switch is not HTMLButtonElement" }
+                el.setAttribute("role", "switch")
+                setIf("aria-label", SemanticsProperties.Text) { it.joinToString() }
+                setIf("aria-checked", SemanticsProperties.Selected) { it.toString() }
             }
+
+            else -> {
+                setIf("aria-label", SemanticsProperties.Text, { it.joinToString() })
+            }
+        }
+
+        node.config.getOrNull(SemanticsProperties.ProgressBarRangeInfo)?.let {
+            require(el is HTMLProgressElement, { "node with ProgressBarRangeInfo is not HTMLProgressElement" })
+            el.setAttribute("value", it.current.toString())
+            el.setAttribute("max", it.range.endInclusive.toString())
         }
 
         fun areAllChildrenRadioButtons(node: SemanticsNode): Boolean {
@@ -410,9 +437,8 @@ class CanvasSemanticsOwnerListener(
             return hasRadioChild
         }
 
-        node.config.getOrNull(SemanticsProperties.CollectionInfo)?.let {
-            if (areAllChildrenRadioButtons(node))
-                el.setAttribute("role", "radiogroup")
+        setIf("role", SemanticsProperties.CollectionInfo) {
+            if (areAllChildrenRadioButtons(node)) "radiogroup" else null
         }
 
         for (event in listOf("keydown", "keyup")) el.addEventListener(event, EventListener {
@@ -423,13 +449,9 @@ class CanvasSemanticsOwnerListener(
             canvas?.dispatchEvent(x)
         })
 
-        node.config.getOrNull(SemanticsProperties.IsDialog)?.let {
-            el.setAttribute("role", "dialog")
-        }
+        setIf("role", SemanticsProperties.IsDialog) { "dialog" }
 
-        node.config.getOrNull(SemanticsProperties.Text)?.let {
-            el.innerText = it.joinToString()
-        }
+        doIf(SemanticsProperties.Text) { el.innerText = it.joinToString() }
 
         when (val onClick = node.config.getOrNull(SemanticsActions.OnClick)?.action) {
             null -> {
@@ -479,24 +501,21 @@ class CanvasSemanticsOwnerListener(
             }
         }
 
-        if (node.config.getOrNull(SemanticsProperties.Focused) == true)
-            el.focus()
+        doIf(SemanticsProperties.Focused) { if (it) el.focus() }
 
         el.removeAttribute("aria-live")
-        node.config.getOrNull(SemanticsProperties.LiveRegion)?.let {
-            el.setAttribute(
-                "aria-live", when (it) {
-                    LiveRegionMode.Polite -> "polite"
-                    LiveRegionMode.Assertive -> "assertive"
-                    else -> "off"
-                }
-            )
+        setIf("aria-live", SemanticsProperties.LiveRegion) {
+            when (it) {
+                LiveRegionMode.Polite -> "polite"
+                LiveRegionMode.Assertive -> "assertive"
+                else -> "off"
+            }
         }
 
         val title = node.config.getOrNull(SemanticsProperties.PaneTitle)
         val description = node.config.getOrNull(SemanticsProperties.ContentDescription)?.joinToString()
         if (title != null) {
-            el.setAttribute("aria-label", title)
+            el.setAttribute("title", title)
             if (title == "tooltip")
                 el.setAttribute("role", "tooltip")
 
@@ -809,6 +828,28 @@ fun main() = AccessibleComposeViewport {
                             }
                         }
 
+                        var switchChecked by remember { mutableStateOf(false) }
+                        val scope = rememberCoroutineScope()
+                        var currentProgress by remember { mutableFloatStateOf(0f) }
+                        ThemedListItemSwitch(
+                            headlineContent = { Text("Start Loading") },
+                            selected = switchChecked,
+                            onChange = {
+                                switchChecked = !switchChecked
+                                scope.launch { loadProgress { currentProgress = it } }
+                            },
+                        )
+
+                        if (switchChecked) ThemedProgressIndicator(
+                            progress = { currentProgress },
+                            style = MaterialTheme.components.linearProgressIndicator,
+                            modifier = Modifier.semantics {
+                                text = AnnotatedString((currentProgress * 100).toString() + "%")
+                                liveRegion = LiveRegionMode.Assertive
+                            },
+                        )
+
+
                         var set by remember { mutableStateOf(Colors.Blue) }
 
                         Text(set.toString())
@@ -848,6 +889,14 @@ fun main() = AccessibleComposeViewport {
                 }
             }
         }
+    }
+}
+
+
+suspend fun loadProgress(updateProgress: (Float) -> Unit) {
+    for (i in 1..100) {
+        updateProgress(i.toFloat() / 100)
+        delay(100)
     }
 }
 
