@@ -4,21 +4,21 @@
 
 package com.github.fhilgers.compose.application
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessAlarm
 import androidx.compose.material3.*
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.PlatformContext
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.window.ComposeViewport
 import androidx.lifecycle.*
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -26,6 +26,10 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.saveable
 import androidx.navigation.ExperimentalBrowserHistoryApi
+import com.github.fhilgers.compose.application.common.RadioSetting
+import com.github.fhilgers.compose.application.common.RadioSettingOption
+import com.github.fhilgers.compose.application.common.Tooltip
+import com.github.fhilgers.compose.application.common.icons.BanIcon
 import com.github.fhilgers.compose.application.theme.*
 import com.github.fhilgers.compose.application.theme.components.*
 import com.github.fhilgers.compose.library.colorScheme
@@ -35,6 +39,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.dom.clear
@@ -56,6 +61,7 @@ import org.w3c.dom.DocumentReadyState
 import org.w3c.dom.HTMLCanvasElement
 import org.w3c.dom.HTMLDivElement
 import org.w3c.dom.HTMLElement
+import org.w3c.dom.HTMLInputElement
 import org.w3c.dom.ItemArrayLike
 import org.w3c.dom.LOADING
 import org.w3c.dom.events.EventListener
@@ -142,6 +148,8 @@ class CanvasSemanticsOwnerListener(
     val focusTask = Channel<() -> Unit>(capacity = 1, BufferOverflow.DROP_OLDEST)
 
     init {
+        a11yContainer.removeAttribute("aria-live")
+
         coroutineScope.launch {
             focusTask.receiveAsFlow().collect {
                 it()
@@ -190,8 +198,8 @@ class CanvasSemanticsOwnerListener(
 
                     val parentElement = node.parent?.id?.let(::findElement) ?: a11yContainer
                     val nextElement = node.parent?.let {
-                        val index = it.children.indexOf(node).takeIf { it >= 0 } ?: return@let null
-                        it.children.getOrNull(index + 1)?.id?.let(::findElement)
+                        val index = it.replacedChildren.indexOf(node).takeIf { it >= 0 } ?: return@let null
+                        it.replacedChildren.getOrNull(index + 1)?.id?.let(::findElement)
                     }
 
                     if (nextElement != null) {
@@ -217,7 +225,7 @@ class CanvasSemanticsOwnerListener(
             // TODO onLayoutChange needs to find the element again, but we already find it above so we could be more efficient
             onLayoutChange(semanticsOwner, node.id)
 
-            queue.addAll(node.children)
+            queue.addAll(node.replacedChildren)
         }
 
         val unseen = currentIds - seen
@@ -246,20 +254,20 @@ class CanvasSemanticsOwnerListener(
             element.style.width = "${size.width}px"
             element.style.height = "${size.height}px"
 
-            for (child in node.children) inner(child.id)
+            for (child in node.replacedChildren) inner(child.id)
         }
 
-        inner(semanticsNodeId)
-        // coroutineScope.launch {
-        //     delay(100)
-        // }
+        coroutineScope.launch {
+            delay(100)
+            inner(semanticsOwner.id)
+        }
     }
 
     private fun findNode(
         semanticsId: Int, parent: SemanticsNode
     ): SemanticsNode? {
         if (parent.id == semanticsId) return parent
-        for (child in parent.children) return findNode(semanticsId, child) ?: continue
+        for (child in parent.replacedChildren) return findNode(semanticsId, child) ?: continue
         return null
     }
 
@@ -345,28 +353,66 @@ class CanvasSemanticsOwnerListener(
             }
 
             Role.RadioButton -> {
+                require(el is HTMLInputElement)
                 el.setAttribute("type", "radio")
-                node.config.getOrNull(SemanticsProperties.Selected)?.let {
-                    el.setAttribute("aria-checked", it.toString())
-                }
                 node.config.getOrNull(SemanticsProperties.Text)?.let {
                     el.setAttribute("aria-label", it.joinToString())
+                }
+                node.config.getOrNull(SemanticsProperties.Selected)?.let {
+                    el.asDynamic().checked = it
                 }
             }
 
             Role.Checkbox -> {
+                require(el is HTMLInputElement)
                 el.setAttribute("type", "checkbox")
                 node.config.getOrNull(SemanticsProperties.Text)?.let {
                     el.setAttribute("aria-label", it.joinToString())
                 }
+                node.config.getOrNull(SemanticsProperties.Selected)?.let {
+                    el.asDynamic().checked = it
+                }
+            }
+
+            Role.Button -> {
                 node.config.getOrNull(SemanticsProperties.ToggleableState)?.let {
                     when (it) {
-                        ToggleableState.On -> el.setAttribute("aria-checked", "true")
-                        ToggleableState.Off -> el.setAttribute("aria-checked", "false")
-                        ToggleableState.Indeterminate -> el.setAttribute("aria-checked", "mixed")
+                        ToggleableState.On -> el.setAttribute("aria-expanded", "true")
+                        ToggleableState.Off -> el.setAttribute("aria-expanded", "false")
+                        ToggleableState.Indeterminate -> {} // better nothing than something wrong
                     }
                 }
             }
+
+            else -> {
+                node.config.getOrNull(SemanticsProperties.Text)?.let {
+                    el.setAttribute("aria-label", it.joinToString())
+                }
+            }
+        }
+
+        fun areAllChildrenRadioButtons(node: SemanticsNode): Boolean {
+            val innerStack = ArrayDeque(listOf(node))
+
+            var hasRadioChild = false
+
+            while (innerStack.isNotEmpty()) {
+                val current = innerStack.removeFirst()
+
+                val role = current.config.getOrNull(SemanticsProperties.Role)
+
+                if (role != null && role != Role.RadioButton) return false
+                if (role == Role.RadioButton) hasRadioChild = true
+
+                innerStack.addAll(current.replacedChildren)
+            }
+
+            return hasRadioChild
+        }
+
+        node.config.getOrNull(SemanticsProperties.CollectionInfo)?.let {
+            if (areAllChildrenRadioButtons(node))
+                el.setAttribute("role", "radiogroup")
         }
 
         for (event in listOf("keydown", "keyup")) el.addEventListener(event, EventListener {
@@ -379,7 +425,6 @@ class CanvasSemanticsOwnerListener(
 
         node.config.getOrNull(SemanticsProperties.IsDialog)?.let {
             el.setAttribute("role", "dialog")
-//            el.setAttribute("aria-modal", "true")
         }
 
         node.config.getOrNull(SemanticsProperties.Text)?.let {
@@ -437,18 +482,27 @@ class CanvasSemanticsOwnerListener(
         if (node.config.getOrNull(SemanticsProperties.Focused) == true)
             el.focus()
 
+        el.removeAttribute("aria-live")
+        node.config.getOrNull(SemanticsProperties.LiveRegion)?.let {
+            el.setAttribute(
+                "aria-live", when (it) {
+                    LiveRegionMode.Polite -> "polite"
+                    LiveRegionMode.Assertive -> "assertive"
+                    else -> "off"
+                }
+            )
+        }
 
         val title = node.config.getOrNull(SemanticsProperties.PaneTitle)
         val description = node.config.getOrNull(SemanticsProperties.ContentDescription)?.joinToString()
         if (title != null) {
-            if (title == "tooltip") {
+            el.setAttribute("aria-label", title)
+            if (title == "tooltip")
                 el.setAttribute("role", "tooltip")
-            } else {
-                el.setAttribute("aria-label", title)
-            }
-            if (description != null) {
+
+            if (description != null)
                 el.setAttribute("aria-description", description)
-            }
+
         } else if (description != null) {
             el.setAttribute("aria-label", description)
         }
@@ -657,6 +711,32 @@ fun main2() = AccessibleComposeViewport {
 
 }
 
+enum class Colors {
+    Blue,
+    Red,
+    Green;
+
+    override fun toString(): String = when (this) {
+        Blue -> "Blue"
+        Red -> "Red"
+        Green -> "Green"
+    }
+}
+
+fun Modifier.focusOnFirstRender(): Modifier = composed {
+    val focusRequester = remember { FocusRequester() }
+    var hasRequested by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        if (!hasRequested) {
+            focusRequester.requestFocus()
+            hasRequested = true
+        }
+    }
+
+    this.focusRequester(focusRequester)
+}
+
 
 @OptIn(
     ExperimentalMaterial3Api::class, ExperimentalBrowserHistoryApi::class
@@ -676,6 +756,8 @@ fun main() = AccessibleComposeViewport {
             ThemedSurface(Modifier.fillMaxSize(), LocalComponentStyles.current.background) {
                 Box(Modifier.fillMaxSize(), Alignment.Center) {
                     Column {
+
+
                         val l = listOf("a", "b", "c")
                         var v by remember { mutableStateOf(l[0]) }
                         ThemedSelect(
@@ -693,7 +775,8 @@ fun main() = AccessibleComposeViewport {
                         ThemedListItemRadioButton(
                             headlineContent = { Text("my title is cool") },
                             selected = selected,
-                            onChange = { selected = !selected }
+                            onChange = { selected = !selected },
+                            modifier = Modifier.focusOnFirstRender()
                         )
 
 
@@ -725,13 +808,48 @@ fun main() = AccessibleComposeViewport {
                                 ) { Text("accept") }
                             }
                         }
+
+                        var set by remember { mutableStateOf(Colors.Blue) }
+
+                        Text(set.toString())
+
+                        RadioSetting(
+                            title = { Text(set.toString()) },
+                            options = mapOf(
+                                Colors.Blue to RadioSettingOption(Colors.Blue.toString()),
+                                Colors.Red to RadioSettingOption(Colors.Red.toString()),
+                                Colors.Green to RadioSettingOption(Colors.Green.toString()),
+                            ),
+                            value = set,
+                            set = { set = it },
+                        )
+
+
+                        var checked by remember { mutableStateOf(false) }
+
+                        Row {
+                            Text("My Test")
+                            Checkbox(checked, onCheckedChange = { checked = it }, Modifier.semantics() {
+                                this.text = AnnotatedString("is duck")
+                            })
+                            Button(onClick = { checked = !checked }) { Text("Button") }
+                        }
+
+                        Tooltip(
+                            tooltip = { Text("back") },
+                            content = {
+                                ThemedIconButton(
+                                    onClick = { println("clicked") },
+                                    content = { BanIcon() }
+                                )
+                            }
+                        )
                     }
                 }
             }
         }
     }
 }
-
 
 //        val navController = rememberNavController()
 
