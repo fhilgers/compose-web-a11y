@@ -8,7 +8,13 @@ plugins {
 
 kotlin {
     js {
-        browser()
+        browser {
+            testTask {
+                useKarma {
+                    useFirefox()
+                }
+            }
+        }
         binaries.executable()
     }
 
@@ -37,6 +43,12 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtimeCompose)
 
             api(libs.koin.annotations)
+        }
+
+        val jsTest by getting
+        jsTest.dependencies {
+            implementation(kotlin("test"))
+            implementation(libs.kotlinx.coroutines.test)
         }
     }
 }

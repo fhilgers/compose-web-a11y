@@ -263,6 +263,8 @@ class CanvasSemanticsOwnerListener(
                 el.setAttribute(attr, v)
             }
 
+        fun setIf(attr: String, prop: SemanticsPropertyKey<String>) = setIf(attr, prop) { it }
+
         fun <T> doIf(prop: SemanticsPropertyKey<T>, value: (T) -> Unit) =
             node.config.getOrNull(prop)?.let { value(it) }
 
@@ -270,6 +272,8 @@ class CanvasSemanticsOwnerListener(
         el.setAttribute("semantics-id", node.id.toString())
         el.style.position = "fixed"
         el.style.whiteSpace = "pre"
+
+        setIf("data-test-tag", SemanticsProperties.TestTag)
 
         when (node.config.getOrNull(SemanticsProperties.Role)) {
             Role.DropdownList -> {
@@ -460,7 +464,7 @@ private fun <T> ItemArrayLike<T>.asSequence(): Sequence<T> = object : Sequence<T
     }
 }
 
-private fun onDomReady(block: () -> Unit) {
+fun onDomReady(block: () -> Unit) {
     if (document.readyState == DocumentReadyState.LOADING) {
         document.addEventListener("DOMContentLoaded", {
             block()

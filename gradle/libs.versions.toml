@@ -8,6 +8,7 @@ android = "8.12.3"
 androidx-activity = "1.11.0"
 koin = "4.1.1"
 koin-annotations = "2.3.0"
+kotlinxCoroutinesTest = "1.10.2"
 ksp = "2.2.21-2.0.4"
 
 
@@ -23,6 +24,7 @@ koin-composeViewModel = { module = "io.insert-koin:koin-compose-viewmodel", vers
 koin-composeViewModelNavigation = { module = "io.insert-koin:koin-compose-viewmodel-navigation", version.ref = "koin" }
 koin-annotations = { module = "io.insert-koin:koin-annotations", version.ref = "koin-annotations" }
 koin-ksp-compiler = { module = "io.insert-koin:koin-ksp-compiler", version.ref = "koin-annotations" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutinesTest" }
 
 [plugins]
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
