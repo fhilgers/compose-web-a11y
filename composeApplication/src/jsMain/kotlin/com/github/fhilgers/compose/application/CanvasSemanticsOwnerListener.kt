@@ -16,6 +16,7 @@ import androidx.compose.ui.semantics.SemanticsOwner
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.window.ComposeViewport
 import kotlinx.browser.document
@@ -279,6 +280,9 @@ class CanvasSemanticsOwnerListener(
             Role.DropdownList -> {
                 // https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Roles/combobox_role
                 el.setAttribute("role", "combobox")
+                setIf("type", SemanticsProperties.IsEditable) { // text field
+                    if (it) "text" else null
+                }
                 setIf("aria-expanded", SemanticsProperties.ToggleableState) {
                     when (it) {
                         ToggleableState.On -> "true"
@@ -289,7 +293,7 @@ class CanvasSemanticsOwnerListener(
             }
 
             Role.RadioButton -> {
-                require(el is HTMLInputElement) { "Role.RadioButton is not HTMLInputElement" }
+//                require(el is HTMLInputElement) { "Role.RadioButton is not HTMLInputElement" }
                 el.setAttribute("type", "radio")
                 setIf("aria-label", SemanticsProperties.Text) { it.joinToString() }
                 node.config.getOrNull(SemanticsProperties.Selected)?.let {
@@ -301,12 +305,17 @@ class CanvasSemanticsOwnerListener(
                 require(el is HTMLInputElement) { "Role.Checkbox is not HTMLInputElement" }
                 el.setAttribute("type", "checkbox")
                 setIf("aria-label", SemanticsProperties.Text) { it.joinToString() }
-                node.config.getOrNull(SemanticsProperties.Selected)?.let {
-                    el.asDynamic().checked = it
+                node.config.getOrNull(SemanticsProperties.ToggleableState)?.let {
+                    when (it) {
+                        ToggleableState.On -> el.asDynamic().checked = true
+                        ToggleableState.Off -> el.asDynamic().checked = false
+                        ToggleableState.Indeterminate -> el.asDynamic().checked = false // I guess
+                    }
                 }
             }
 
             Role.Button -> {
+                doIf(SemanticsProperties.Text) { el.innerText = it.joinToString() }
                 setIf("aria-expanded", SemanticsProperties.ToggleableState) {
                     when (it) {
                         ToggleableState.On -> "true"
@@ -321,11 +330,26 @@ class CanvasSemanticsOwnerListener(
                 require(el is HTMLButtonElement) { "Role.Switch is not HTMLButtonElement" }
                 el.setAttribute("role", "switch")
                 setIf("aria-label", SemanticsProperties.Text) { it.joinToString() }
-                setIf("aria-checked", SemanticsProperties.Selected) { it.toString() }
+                setIf("aria-checked", SemanticsProperties.ToggleableState) {
+                    when (it) {
+                        ToggleableState.On -> "true"
+                        ToggleableState.Off -> "false"
+                        ToggleableState.Indeterminate -> "false"
+                    }
+                }
             }
 
             else -> {
                 setIf("aria-label", SemanticsProperties.Text, { it.joinToString() })
+                // https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Roles/textbox_role
+                // https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input/text
+                if (node.config.getOrNull(SemanticsProperties.IsEditable) != null && el is HTMLInputElement) {
+                    el.setAttribute("type", "text")
+                    setIf("aria-description", SemanticsProperties.InputText) { it.toString() }
+                    el.removeAttribute("readonly")
+                    if (node.config.getOrNull(SemanticsActions.SetText) == null)
+                        el.setAttribute("readonly", "")
+                }
             }
         }
 
@@ -358,15 +382,6 @@ class CanvasSemanticsOwnerListener(
             if (areAllChildrenRadioButtons(node)) "radiogroup" else null
         }
 
-        // https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Roles/textbox_role
-        // https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input/text
-        doIf(SemanticsProperties.IsEditable) {
-            require(el is HTMLInputElement)
-            el.setAttribute("type", "text")
-            el.readOnly = node.config.getOrNull(SemanticsActions.SetText) == null
-            setIf("aria-description", SemanticsProperties.InputText) { it.toString() }
-        }
-
         for (event in listOf("keydown", "keyup")) el.addEventListener(event, EventListener {
             it.stopImmediatePropagation()
             it.stopPropagation()
@@ -376,8 +391,6 @@ class CanvasSemanticsOwnerListener(
         })
 
         setIf("role", SemanticsProperties.IsDialog) { "dialog" }
-
-        doIf(SemanticsProperties.Text) { el.innerText = it.joinToString() }
 
         when (val onClick = node.config.getOrNull(SemanticsActions.OnClick)?.action) {
             null -> {
