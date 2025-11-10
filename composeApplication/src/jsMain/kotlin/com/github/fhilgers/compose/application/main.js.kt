@@ -5,6 +5,10 @@
 package com.github.fhilgers.compose.application
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldLineLimits.Companion
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessAlarm
 import androidx.compose.material3.*
@@ -333,6 +337,9 @@ class CanvasSemanticsOwnerListener(
                         node.config.getOrNull(SemanticsProperties.ProgressBarRangeInfo) != null ->
                             "progress"
 
+                        node.config.getOrNull(SemanticsProperties.IsEditable) != null ->
+                            "input"
+
                         else -> "div"
                     }
                 }
@@ -439,6 +446,15 @@ class CanvasSemanticsOwnerListener(
 
         setIf("role", SemanticsProperties.CollectionInfo) {
             if (areAllChildrenRadioButtons(node)) "radiogroup" else null
+        }
+
+        // https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Roles/textbox_role
+        // https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input/text
+        doIf(SemanticsProperties.IsEditable) {
+            require(el is HTMLInputElement)
+            el.setAttribute("type", "text")
+            el.readOnly = node.config.getOrNull(SemanticsActions.SetText) == null
+            setIf("aria-description", SemanticsProperties.InputText) { it.toString() }
         }
 
         for (event in listOf("keydown", "keyup")) el.addEventListener(event, EventListener {
@@ -788,11 +804,17 @@ fun main() = AccessibleComposeViewport {
 
                         ThemedButton(onClick = { println("aaaaaaaaaaaaaaaaaaa") }) { Text(v) }
 
-                        ThemedUserAvatar(initials = "MV")
-
                         var selected by remember { mutableStateOf(false) }
+
+                        val tfs = rememberTextFieldState("v")
+                        OutlinedTextField(
+                            state = tfs,
+                            readOnly = selected,
+                            lineLimits = TextFieldLineLimits.SingleLine,
+                        )
+
                         ThemedListItemRadioButton(
-                            headlineContent = { Text("my title is cool") },
+                            headlineContent = { Text("textbox readonly") },
                             selected = selected,
                             onChange = { selected = !selected },
                             modifier = Modifier.focusOnFirstRender()
