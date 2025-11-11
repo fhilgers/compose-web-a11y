@@ -122,6 +122,14 @@ class CanvasSemanticsOwnerListener(
     init {
         a11yContainer.removeAttribute("aria-live")
         a11yContainer.setAttribute("role", "application")
+        for (event in listOf("keydown", "keyup")) a11yContainer.addEventListener(event, EventListener {
+            it.stopImmediatePropagation()
+            it.stopPropagation()
+            it.preventDefault()
+            val x = js("new it.constructor(it.type, it);")
+            canvas?.dispatchEvent(x)
+        }, true)
+
         coroutineScope.launch {
             syncFlow
                 .conflate()
@@ -129,7 +137,7 @@ class CanvasSemanticsOwnerListener(
                     for (owner in owners) {
                         onSemanticsChangeInner(owner)
                     }
-            }
+                }
         }
 
         coroutineScope.launch {
@@ -449,14 +457,6 @@ class CanvasSemanticsOwnerListener(
         setIf("role", SemanticsProperties.CollectionInfo) {
             if (areAllChildrenRadioButtons(node)) "radiogroup" else null
         }
-
-        for (event in listOf("keydown", "keyup")) el.addEventListener(event, EventListener {
-            it.stopImmediatePropagation()
-            it.stopPropagation()
-            it.preventDefault()
-            val x = js("new it.constructor(it.type, it);")
-            canvas?.dispatchEvent(x)
-        })
 
         setIf("role", SemanticsProperties.IsDialog) { "dialog" }
 
