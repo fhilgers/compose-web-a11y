@@ -6,7 +6,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Connect2xComposeUiApi
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.InternalComposeUiApi
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.LayoutInfo
 import androidx.compose.ui.platform.PlatformContext
@@ -17,13 +16,14 @@ import kotlinx.browser.document
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.launch
 import kotlinx.dom.clear
 import org.w3c.dom.*
 import org.w3c.dom.events.EventListener
+import kotlin.time.Duration.Companion.seconds
 
 interface TestableSemanticsOwner {
     val rootSemanticsNode: TestableSemanticsNode
@@ -114,14 +114,28 @@ class CanvasSemanticsOwnerListener(
     val coroutineScope: CoroutineScope = MainScope(),
 ) : TestableSemanticsOwnerListener {
 
-    val focusTask = Channel<() -> Unit>(capacity = 1, BufferOverflow.DROP_OLDEST)
+    val owners = mutableSetOf<TestableSemanticsOwner>()
+
+    val syncFlow =
+        MutableSharedFlow<Unit>(replay = 1, extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
     init {
         a11yContainer.removeAttribute("aria-live")
         a11yContainer.setAttribute("role", "application")
         coroutineScope.launch {
-            focusTask.receiveAsFlow().collect {
-                it()
+            syncFlow
+                .conflate()
+                .collect {
+                    for (owner in owners) {
+                        onSemanticsChangeInner(owner)
+                    }
+            }
+        }
+
+        coroutineScope.launch {
+            while (true) {
+                syncFlow.emit(Unit)
+                delay(2.seconds)
             }
         }
     }
@@ -135,18 +149,24 @@ class CanvasSemanticsOwnerListener(
         ownerElement.setAttribute("semantics-id", semanticsOwner.rootSemanticsNode.id.toString())
 
         a11yContainer.appendChild(ownerElement)
+        owners.add(semanticsOwner)
     }
 
     override fun onSemanticsOwnerRemoved(semanticsOwner: TestableSemanticsOwner) {
         val element = checkNotNull(findElement(semanticsOwner.id)) { "owner does not exist" }
 
         element.remove()
+        owners.remove(semanticsOwner)
     }
 
     val listeners = mutableMapOf<Int, EventListener>()
     val clickListeners = mutableMapOf<Int, EventListener>()
 
     override fun onSemanticsChange(semanticsOwner: TestableSemanticsOwner) {
+        syncFlow.tryEmit(Unit)
+    }
+
+    fun onSemanticsChangeInner(semanticsOwner: TestableSemanticsOwner) {
         val queue = ArrayDeque(listOf(semanticsOwner.rootSemanticsNode))
 
         val parent = findElement(semanticsOwner.id) ?: return
@@ -206,30 +226,32 @@ class CanvasSemanticsOwnerListener(
     }
 
     override fun onLayoutChange(semanticsOwner: TestableSemanticsOwner, semanticsNodeId: Int) {
-        fun inner(semanticsNodeId: Int) {
-            val node = findNode(semanticsNodeId, semanticsOwner.rootSemanticsNode) ?: return
-            val element = findElement(semanticsNodeId) ?: return
+        return
 
-            val rootPosition = a11yContainer.getBoundingClientRect().let {
-                Offset(it.left.toFloat(), it.top.toFloat())
-            }
-
-            val density = node.layoutInfo.density.density
-            val toRoot = node.layoutInfo.coordinates.localToRoot(rootPosition).div(density)
-            val size = node.boundsInRoot.size.div(density)
-
-            element.style.left = "${toRoot.x}px"
-            element.style.top = "${toRoot.y}px"
-            element.style.width = "${size.width}px"
-            element.style.height = "${size.height}px"
-
-            for (child in node.replacedChildren) inner(child.id)
-        }
-
-        coroutineScope.launch {
-            delay(100)
-            inner(semanticsOwner.id)
-        }
+//        fun inner(semanticsNodeId: Int) {
+//            val node = findNode(semanticsNodeId, semanticsOwner.rootSemanticsNode) ?: return
+//            val element = findElement(semanticsNodeId) ?: return
+//
+//            val rootPosition = a11yContainer.getBoundingClientRect().let {
+//                Offset(it.left.toFloat(), it.top.toFloat())
+//            }
+//
+//            val density = node.layoutInfo.density.density
+//            val toRoot = node.layoutInfo.coordinates.localToRoot(rootPosition).div(density)
+//            val size = node.boundsInRoot.size.div(density)
+//
+//            element.style.left = "${toRoot.x}px"
+//            element.style.top = "${toRoot.y}px"
+//            element.style.width = "${size.width}px"
+//            element.style.height = "${size.height}px"
+//
+//            for (child in node.replacedChildren) inner(child.id)
+//        }
+//
+//        coroutineScope.launch {
+//            delay(100)
+//            inner(semanticsOwner.id)
+//        }
     }
 
     private fun findNode(
@@ -243,27 +265,17 @@ class CanvasSemanticsOwnerListener(
     private fun findElement(
         semanticsId: Int, parent: HTMLElement = a11yContainer
     ): HTMLElement? {
-        if (parent.getAttribute("semantics-id")?.toInt() == semanticsId) return parent
-
-        for (child in parent.children.asSequence().filterIsInstance<HTMLElement>()) return findElement(
-            semanticsId,
-            child
-        ) ?: continue
-
-        return null
+        return parent.querySelector("""[semantics-id="$semanticsId"]""") as HTMLElement?
     }
 
     private fun collectIds(
         parent: HTMLElement = a11yContainer
     ): Set<Int> {
-        val id = parent.getAttribute("semantics-id")?.toInt() ?: return emptySet()
-        val ids = mutableSetOf(id)
-
-        for (child in parent.children.asSequence().filterIsInstance<HTMLElement>()) {
-            ids += collectIds(child)
-        }
-
-        return ids
+        return parent.querySelectorAll("""[semantics-id]""")
+            .asSequence()
+            .map { it as HTMLElement }
+            .map { it.getAttribute("semantics-id")!!.toInt() }
+            .toSet()
     }
 
     private fun HTMLElement.clearAll() {
