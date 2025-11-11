@@ -24,6 +24,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 @ExperimentalMaterial3Api
 class SemanticsTest {
@@ -385,6 +386,114 @@ class SemanticsTest {
             attrs = mapOf("role" to "dialog"),
         )
     }
+
+    @Test
+    fun `progress bar is progress`() = a11yTest({
+        LinearProgressIndicator(
+            progress = { 0.5F },
+            modifier = Modifier.semantics { testTag = "pb" },
+        )
+    }) { a11yRoot ->
+        assertElem(
+            elem = a11yRoot.byTestTag("pb"),
+            tag = "progress",
+            attrs = mapOf(
+                "value" to "0.5",
+                "max" to "1",
+            ),
+        )
+    }
+
+    @Test
+    fun `progress bar range info is progress`() = a11yTest({
+        Box(
+            modifier = Modifier.semantics {
+                testTag = "pb"
+                progressBarRangeInfo = ProgressBarRangeInfo(
+                    current = 0.5f,
+                    range = 0f..1f,
+                )
+            },
+        )
+    }) { a11yRoot ->
+        assertElem(
+            elem = a11yRoot.byTestTag("pb"),
+            tag = "progress",
+            attrs = mapOf(
+                "value" to "0.5",
+                "max" to "1",
+            ),
+        )
+    }
+
+    @Test
+    fun `labeled progress bar is has label`() = a11yTest({
+        LinearProgressIndicator(
+            progress = { 0.5F },
+            modifier = Modifier.semantics {
+                testTag = "pb"
+                text = AnnotatedString("lorem ipsum")
+            },
+        )
+    }) { a11yRoot ->
+        assertElem(
+            elem = a11yRoot.byTestTag("pb"),
+            tag = "progress",
+            attrs = mapOf(
+                "value" to "0.5",
+                "max" to "1",
+                "aria-label" to "lorem ipsum",
+            ),
+        )
+    }
+
+    @Test
+    fun `live region is aria live`() = a11yTest({
+        Text(
+            text = "Lorem ipsum",
+            modifier = Modifier.semantics {
+                testTag = "t"
+                liveRegion = LiveRegionMode.Assertive
+            },
+        )
+    }) { a11yRoot ->
+        assertElem(
+            a11yRoot.byTestTag("t"),
+            tag = "div",
+            attrs = mapOf(
+                "aria-live" to "assertive",
+                "aria-label" to "Lorem ipsum",
+            ),
+        )
+    }
+
+    @Test
+    fun `tooltip is role tooltip`() = a11yTest({
+        TooltipBox(
+            positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+            state = rememberTooltipState(),
+            modifier = Modifier.semantics {
+                testTag = "tt"
+                paneTitle = "tooltip"
+            },
+            tooltip = { Text("tooltiptext") },
+        ) {
+            Button(
+                onClick = {},
+                content = { Text("btn text") },
+            )
+        }
+    }) { a11yRoot ->
+        assertElem(
+            elem = a11yRoot.byTestTag("tt"),
+            tag = "div",
+            attrs = mapOf(
+                "role" to "tooltip",
+                "title" to "tooltip",
+                "aria-label" to "btn text", // TODO is this correct?
+            ),
+        )
+    }
 }
 
 @OptIn(Connect2xComposeUiApi::class, ExperimentalComposeUiApi::class, InternalComposeUiApi::class)
@@ -409,6 +518,7 @@ private fun a11yTest(
         a11yRoot != null
     }
 
+//    delay(10.seconds)
     println(a11yRoot?.innerHTML)
     assertions(a11yRoot ?: error("could not find cmp_a11y_root"))
 
