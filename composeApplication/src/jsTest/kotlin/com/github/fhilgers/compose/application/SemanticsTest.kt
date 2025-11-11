@@ -507,7 +507,7 @@ private fun a11yTest(
     onDomReady {
         ComposeViewport(
             viewportContainer = root,
-            semanticsListener = { CanvasSemanticsOwnerListener(it, backgroundScope) },
+            semanticsListener = { TestableSemanticsOwnerListenerWrapper(CanvasSemanticsOwnerListener(it, backgroundScope)) },
             content = content,
         )
     }
