@@ -7,16 +7,10 @@ import androidx.compose.ui.Connect2xComposeUiApi
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.InternalComposeUiApi
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.LayoutInfo
 import androidx.compose.ui.platform.PlatformContext
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.semantics.SemanticsNode
-import androidx.compose.ui.semantics.SemanticsOwner
-import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.semantics.SemanticsPropertyKey
-import androidx.compose.ui.semantics.getOrNull
-import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.*
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.window.ComposeViewport
 import kotlinx.browser.document
@@ -28,25 +22,87 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.dom.clear
-import org.w3c.dom.DocumentReadyState
-import org.w3c.dom.HTMLButtonElement
-import org.w3c.dom.HTMLCanvasElement
-import org.w3c.dom.HTMLDivElement
-import org.w3c.dom.HTMLElement
-import org.w3c.dom.HTMLInputElement
-import org.w3c.dom.HTMLProgressElement
-import org.w3c.dom.ItemArrayLike
-import org.w3c.dom.LOADING
+import org.w3c.dom.*
 import org.w3c.dom.events.EventListener
 
+interface TestableSemanticsOwner {
+    val rootSemanticsNode: TestableSemanticsNode
+}
 
+interface TestableSemanticsNode {
+    val id: Int
+    val config: SemanticsConfiguration
+    val parent: TestableSemanticsNode?
+    val replacedChildren: List<TestableSemanticsNode>
+    val layoutInfo: LayoutInfo
+    val boundsInRoot: Rect
+}
+
+interface TestableSemanticsOwnerListener {
+    fun onSemanticsOwnerAppended(semanticsOwner: TestableSemanticsOwner)
+    fun onSemanticsOwnerRemoved(semanticsOwner: TestableSemanticsOwner)
+    fun onSemanticsChange(semanticsOwner: TestableSemanticsOwner)
+    fun onLayoutChange(semanticsOwner: TestableSemanticsOwner, semanticsNodeId: Int)
+}
+
+class SemanticsOwnerWrapper(
+    private val inner: SemanticsOwner,
+) : TestableSemanticsOwner {
+    override val rootSemanticsNode: TestableSemanticsNode
+        get() = SemanticsNodeWrapper(inner.rootSemanticsNode)
+
+}
+
+class SemanticsNodeWrapper(
+    private val inner: SemanticsNode,
+) : TestableSemanticsNode {
+    override val id: Int
+        get() = inner.id
+
+
+    override val config: SemanticsConfiguration
+        get() = inner.config
+
+    override val parent: TestableSemanticsNode?
+        get() = inner.parent?.let(::SemanticsNodeWrapper)
+
+    override val replacedChildren: List<TestableSemanticsNode>
+        get() = inner.replacedChildren.map(::SemanticsNodeWrapper)
+
+    override val layoutInfo: LayoutInfo
+        get() = inner.layoutInfo
+
+    override val boundsInRoot: Rect
+        get() = inner.boundsInRoot
+}
+
+class TestableSemanticsOwnerListenerWrapper(
+    private val inner: TestableSemanticsOwnerListener,
+) : PlatformContext.SemanticsOwnerListener {
+    override fun onSemanticsOwnerAppended(semanticsOwner: SemanticsOwner) =
+        inner.onSemanticsOwnerAppended(SemanticsOwnerWrapper(semanticsOwner))
+
+    override fun onSemanticsOwnerRemoved(semanticsOwner: SemanticsOwner) =
+        inner.onSemanticsOwnerRemoved(SemanticsOwnerWrapper(semanticsOwner))
+
+    override fun onSemanticsChange(semanticsOwner: SemanticsOwner) =
+        inner.onSemanticsChange(SemanticsOwnerWrapper(semanticsOwner))
+
+    override fun onLayoutChange(
+        semanticsOwner: SemanticsOwner,
+        semanticsNodeId: Int
+    ) = inner.onLayoutChange(SemanticsOwnerWrapper(semanticsOwner), semanticsNodeId)
+}
+
+
+@Suppress("FunctionName")
 fun AccessibleComposeViewport(content: @Composable () -> Unit = {}) {
     onDomReady {
         val body = document.body ?: error("failed to find <body> element")
 
         ComposeViewport(
             viewportContainer = body,
-            semanticsListener = { CanvasSemanticsOwnerListener(it) },
+            semanticsListener = { TestableSemanticsOwnerListenerWrapper(CanvasSemanticsOwnerListener(it)) },
             configure = { },
             content = content,
         )
@@ -56,7 +112,7 @@ fun AccessibleComposeViewport(content: @Composable () -> Unit = {}) {
 class CanvasSemanticsOwnerListener(
     val a11yContainer: HTMLDivElement,
     val coroutineScope: CoroutineScope = MainScope(),
-) : PlatformContext.SemanticsOwnerListener {
+) : TestableSemanticsOwnerListener {
 
     val focusTask = Channel<() -> Unit>(capacity = 1, BufferOverflow.DROP_OLDEST)
 
@@ -70,7 +126,7 @@ class CanvasSemanticsOwnerListener(
         }
     }
 
-    override fun onSemanticsOwnerAppended(semanticsOwner: SemanticsOwner) {
+    override fun onSemanticsOwnerAppended(semanticsOwner: TestableSemanticsOwner) {
         if (findElement(semanticsOwner.id) != null) return
 
         val ownerElement = document.createElement("div") as HTMLDivElement
@@ -81,7 +137,7 @@ class CanvasSemanticsOwnerListener(
         a11yContainer.appendChild(ownerElement)
     }
 
-    override fun onSemanticsOwnerRemoved(semanticsOwner: SemanticsOwner) {
+    override fun onSemanticsOwnerRemoved(semanticsOwner: TestableSemanticsOwner) {
         val element = checkNotNull(findElement(semanticsOwner.id)) { "owner does not exist" }
 
         element.remove()
@@ -90,7 +146,7 @@ class CanvasSemanticsOwnerListener(
     val listeners = mutableMapOf<Int, EventListener>()
     val clickListeners = mutableMapOf<Int, EventListener>()
 
-    override fun onSemanticsChange(semanticsOwner: SemanticsOwner) {
+    override fun onSemanticsChange(semanticsOwner: TestableSemanticsOwner) {
         val queue = ArrayDeque(listOf(semanticsOwner.rootSemanticsNode))
 
         val parent = findElement(semanticsOwner.id) ?: return
@@ -149,7 +205,7 @@ class CanvasSemanticsOwnerListener(
         }
     }
 
-    override fun onLayoutChange(semanticsOwner: SemanticsOwner, semanticsNodeId: Int) {
+    override fun onLayoutChange(semanticsOwner: TestableSemanticsOwner, semanticsNodeId: Int) {
         fun inner(semanticsNodeId: Int) {
             val node = findNode(semanticsNodeId, semanticsOwner.rootSemanticsNode) ?: return
             val element = findElement(semanticsNodeId) ?: return
@@ -177,8 +233,8 @@ class CanvasSemanticsOwnerListener(
     }
 
     private fun findNode(
-        semanticsId: Int, parent: SemanticsNode
-    ): SemanticsNode? {
+        semanticsId: Int, parent: TestableSemanticsNode
+    ): TestableSemanticsNode? {
         if (parent.id == semanticsId) return parent
         for (child in parent.replacedChildren) return findNode(semanticsId, child) ?: continue
         return null
@@ -220,10 +276,10 @@ class CanvasSemanticsOwnerListener(
     }
 
 
-    private val SemanticsOwner.id: Int
+    private val TestableSemanticsOwner.id: Int
         get() = rootSemanticsNode.id
 
-    private fun basicHTMLElement(node: SemanticsNode): HTMLElement {
+    private fun basicHTMLElement(node: TestableSemanticsNode): HTMLElement {
         return document.createElement(
             when (node.config.getOrNull(SemanticsProperties.Role)) {
                 Role.Button -> "button"
@@ -257,7 +313,7 @@ class CanvasSemanticsOwnerListener(
     // TODO this location may be different
     private val canvas = a11yContainer.previousElementSibling?.previousElementSibling as? HTMLCanvasElement
 
-    private fun setAttrs(el: HTMLElement, node: SemanticsNode) {
+    private fun setAttrs(el: HTMLElement, node: TestableSemanticsNode) {
         fun <T> setIf(attr: String, prop: SemanticsPropertyKey<T>, value: (T) -> String?) =
             node.config.getOrNull(prop)?.let {
                 val v = value(it) ?: return@let null
@@ -359,7 +415,7 @@ class CanvasSemanticsOwnerListener(
             el.setAttribute("max", it.range.endInclusive.toString())
         }
 
-        fun areAllChildrenRadioButtons(node: SemanticsNode): Boolean {
+        fun areAllChildrenRadioButtons(node: TestableSemanticsNode): Boolean {
             val innerStack = ArrayDeque(listOf(node))
 
             var hasRadioChild = false
