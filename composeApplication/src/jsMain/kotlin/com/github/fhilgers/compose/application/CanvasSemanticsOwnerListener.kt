@@ -62,7 +62,7 @@ class CanvasSemanticsOwnerListener(
 
     init {
         a11yContainer.removeAttribute("aria-live")
-
+        a11yContainer.setAttribute("role", "application")
         coroutineScope.launch {
             focusTask.receiveAsFlow().collect {
                 it()
@@ -422,6 +422,7 @@ class CanvasSemanticsOwnerListener(
         when (val requestFocus = node.config.getOrNull(SemanticsActions.RequestFocus)?.action) {
             null -> {
                 if (listeners[node.id] != null) {
+                    el.removeAttribute("tabindex")
                     el.removeEventListener("focus", listeners[node.id])
                     listeners.remove(node.id)
                 }
@@ -434,6 +435,8 @@ class CanvasSemanticsOwnerListener(
                         requestFocus()
                     }
 
+                    if (el is HTMLDivElement)
+                        el.setAttribute("tabindex", "-1")
                     el.addEventListener("focus", focusListener)
                     listeners[node.id] = focusListener
                 }
