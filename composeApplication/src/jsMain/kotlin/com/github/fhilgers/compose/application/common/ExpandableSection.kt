@@ -18,6 +18,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.collapse
+import androidx.compose.ui.semantics.expand
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
@@ -80,7 +82,10 @@ fun ExpandableSection(
                         expanded.value = !expanded.value
                     }.semantics {
                         role = Role.Button
-                        toggleableState = if (expanded.value) ToggleableState.On else ToggleableState.Off
+                        if (expanded.value)
+                            collapse { expanded.value = false; true }
+                        else
+                            expand { expanded.value = true; true }
                     }
                     .buttonPointerModifier(true).padding(16.dp)
                     .fillMaxWidth(),
