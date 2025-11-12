@@ -341,6 +341,29 @@ fun main() = AccessibleComposeViewport {
                 Box(Modifier.fillMaxSize(), Alignment.Center) {
                     Column {
 
+                        fun Modifier.expandable(expanded: Boolean, setExpanded: (Boolean) -> Unit = {}) =
+                            this.semantics {
+                                if (expanded) collapse { setExpanded(false); true }
+                                else expand { setExpanded(true); true }
+                            }
+
+                        var expanded by remember { mutableStateOf(false) }
+                        Button(
+                            onClick = { expanded = expanded.not() },
+                            modifier = Modifier
+                                .expandable(expanded)
+                                .semantics { testTag = "btn" }) {
+                            Text("Open me")
+                            DropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false },
+                            ) {
+                                DropdownMenuItem({ Text("a") }, {}, Modifier.focusOnFirstRender())
+                                DropdownMenuItem({ Text("b") }, {})
+                                DropdownMenuItem({ Text("c") }, {})
+                            }
+                        }
+
 
                         val l = listOf("a", "b", "c")
                         var v by remember { mutableStateOf(l[0]) }

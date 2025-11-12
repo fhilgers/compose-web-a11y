@@ -491,6 +491,36 @@ class SemanticsTest {
             ),
         )
     }
+
+    @Test
+    fun `button opening popup menu is expandable `() = a11yTest({
+        var expanded by remember { mutableStateOf(false) }
+        Button(
+            onClick = { expanded != expanded },
+            modifier = Modifier.semantics {
+                testTag = "btn"
+                if (expanded) collapse { expanded = false; true }
+                else expand { expanded = true; true }
+            },
+        ) {
+            Text("Open me")
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+            ) {
+                DropdownMenuItem({ Text("a") }, {})
+                DropdownMenuItem({ Text("b") }, {})
+                DropdownMenuItem({ Text("c") }, {})
+            }
+        }
+    }) { a11yRoot ->
+        assertElem(
+            elem = a11yRoot.byTestTag("btn"),
+            tag = "button",
+            attrs = mapOf("aria-expanded" to "false"),
+            innerHTML = "Open me",
+        )
+    }
 }
 
 @OptIn(Connect2xComposeUiApi::class, ExperimentalComposeUiApi::class, InternalComposeUiApi::class)
