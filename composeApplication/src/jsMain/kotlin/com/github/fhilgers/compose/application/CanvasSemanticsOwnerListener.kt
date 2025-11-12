@@ -359,13 +359,8 @@ class CanvasSemanticsOwnerListener(
                 setIf("type", SemanticsProperties.IsEditable) { // text field
                     if (it) "text" else null
                 }
-                setIf("aria-expanded", SemanticsProperties.ToggleableState) {
-                    when (it) {
-                        ToggleableState.On -> "true"
-                        ToggleableState.Off -> "false"
-                        ToggleableState.Indeterminate -> null // better nothing than something wrong
-                    }
-                }
+                setIf("aria-expanded", SemanticsActions.Expand) { "false" }
+                setIf("aria-expanded", SemanticsActions.Collapse) { "true" }
             }
 
             Role.RadioButton -> {
@@ -392,13 +387,8 @@ class CanvasSemanticsOwnerListener(
 
             Role.Button -> {
                 doIf(SemanticsProperties.Text) { el.innerText = it.joinToString() }
-                setIf("aria-expanded", SemanticsProperties.ToggleableState) {
-                    when (it) {
-                        ToggleableState.On -> "true"
-                        ToggleableState.Off -> "false"
-                        ToggleableState.Indeterminate -> null // better nothing than something wrong
-                    }
-                }
+                setIf("aria-expanded", SemanticsActions.Expand) { "false" }
+                setIf("aria-expanded", SemanticsActions.Collapse) { "true" }
             }
 
             Role.Switch -> {

@@ -2,7 +2,6 @@ package com.github.fhilgers.compose.application
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,7 +23,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
 
 @ExperimentalMaterial3Api
 class SemanticsTest {
@@ -85,15 +83,15 @@ class SemanticsTest {
         ) {
             TextField(
                 state = rememberTextFieldState(),
-                modifier = Modifier.toggleable(
-                    value = expanded,
-                    interactionSource = null,
-                    indication = null,
-                    onValueChange = { expanded != expanded },
-                    role = Role.DropdownList,
-                )
+                modifier = Modifier
                     .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable, true)
-                    .semantics { testTag = "dd" },
+                    .semantics {
+                        testTag = "dd"
+                        if (expanded)
+                            collapse { expanded = false; true }
+                        else
+                            expand { expanded = true; true }
+                    },
             )
             ExposedDropdownMenu(
                 expanded = expanded,
@@ -126,15 +124,15 @@ class SemanticsTest {
             TextField(
                 state = rememberTextFieldState(),
                 readOnly = true,
-                modifier = Modifier.toggleable(
-                    value = expanded,
-                    interactionSource = null,
-                    indication = null,
-                    onValueChange = { expanded != expanded },
-                    role = Role.DropdownList,
-                )
+                modifier = Modifier
                     .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
-                    .semantics { testTag = "dd" },
+                    .semantics {
+                        testTag = "dd"
+                        if (expanded)
+                            collapse { expanded = false; true }
+                        else
+                            expand { expanded = true; true }
+                    },
             )
             ExposedDropdownMenu(
                 expanded = expanded,
@@ -166,15 +164,15 @@ class SemanticsTest {
             TextField(
                 state = rememberTextFieldState(),
                 readOnly = true,
-                modifier = Modifier.toggleable(
-                    value = expanded,
-                    interactionSource = null,
-                    indication = null,
-                    onValueChange = { expanded != expanded },
-                    role = Role.DropdownList,
-                )
+                modifier = Modifier
                     .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
-                    .semantics { testTag = "dd" },
+                    .semantics {
+                        testTag = "dd"
+                        if (expanded)
+                            collapse { expanded = false; true }
+                        else
+                            expand { expanded = true; true }
+                    },
             )
             ExposedDropdownMenu(
                 expanded = expanded,
@@ -490,7 +488,6 @@ class SemanticsTest {
             attrs = mapOf(
                 "role" to "tooltip",
                 "title" to "tooltip",
-                "aria-label" to "btn text", // TODO is this correct?
             ),
         )
     }
@@ -507,7 +504,14 @@ private fun a11yTest(
     onDomReady {
         ComposeViewport(
             viewportContainer = root,
-            semanticsListener = { TestableSemanticsOwnerListenerWrapper(CanvasSemanticsOwnerListener(it, backgroundScope)) },
+            semanticsListener = {
+                TestableSemanticsOwnerListenerWrapper(
+                    CanvasSemanticsOwnerListener(
+                        it,
+                        backgroundScope
+                    )
+                )
+            },
             content = content,
         )
     }
